@@ -3,7 +3,7 @@
   bottom: 100px;
   left: 10%;
   transform: translateX(-50%);
-  z-index: 40;
+  z-index: 50;
   width: 48px;
   height: 48px;
   border-radius: 50%;
@@ -43,7 +43,7 @@
   background: rgba(30, 30, 30, 0.95);
   backdrop-filter: blur(10px);
   border-radius: 12px 12px 0 0;
-  z-index: 35;
+  z-index: 50;
   transition: transform 0.3s ease;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
   display: flex;
