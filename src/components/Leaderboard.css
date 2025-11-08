@@ -1,7 +1,7 @@
 .leaderboard-button {
   position: fixed;
   bottom: 100px;
-  left: 50%;
+  left: 10%;
   transform: translateX(-50%);
   z-index: 40;
   width: 48px;
@@ -20,7 +20,7 @@
 }
 
 .leaderboard-button.shifted {
-  bottom: 270px;
+  bottom: 220px;
 }
 
 .leaderboard-button:hover {
