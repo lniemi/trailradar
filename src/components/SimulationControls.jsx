@@ -100,8 +100,8 @@ export default function SimulationControls({ simulation, onClose }) {
           <input
             type="range"
             min="1"
-            max="20"
-            step="0.5"
+            max="500"
+            step="1"
             value={speed}
             onChange={handleSpeedChange}
             className="w-full"
