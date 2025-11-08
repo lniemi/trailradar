@@ -78,7 +78,7 @@ export default function SimulationManager() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="h-screen overflow-y-auto bg-gray-950 text-white">
       <Navbar />
 
       <div className="container mx-auto px-4 pt-24 pb-8">
