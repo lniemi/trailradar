@@ -9,12 +9,12 @@ export default function Navbar() {
       {/* Ultra-discreet Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-3 left-1/2 -translate-x-1/2 z-50 w-7 h-7 flex flex-col items-center justify-center gap-[3px] bg-white/5 rounded hover:bg-white/20 transition-all opacity-10 hover:opacity-100"
+        className="fixed top-3 left-1/2 -translate-x-1/2 z-50 w-7 h-7 flex flex-col items-center justify-center gap-[3px] bg-yellow-400/10 rounded hover:bg-yellow-400/30 transition-all opacity-70 hover:opacity-100"
         aria-label="Toggle menu"
       >
-        <span className={`w-4 h-[1.5px] bg-white transition-all ${isOpen ? 'rotate-45 translate-y-[4.5px]' : ''}`} />
-        <span className={`w-4 h-[1.5px] bg-white transition-all ${isOpen ? 'opacity-0' : ''}`} />
-        <span className={`w-4 h-[1.5px] bg-white transition-all ${isOpen ? '-rotate-45 -translate-y-[4.5px]' : ''}`} />
+        <span className={`w-4 h-[2px] bg-yellow-400 transition-all ${isOpen ? 'rotate-45 translate-y-[5px]' : ''}`} />
+        <span className={`w-4 h-[2px] bg-yellow-400 transition-all ${isOpen ? 'opacity-0' : ''}`} />
+        <span className={`w-4 h-[2px] bg-yellow-400 transition-all ${isOpen ? '-rotate-45 -translate-y-[5px]' : ''}`} />
       </button>
 
       {/* Dropdown Menu */}
