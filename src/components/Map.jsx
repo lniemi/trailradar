@@ -4,10 +4,11 @@ import './Map.css'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
-const Map = forwardRef((props, ref) => {
+const MapComponent = forwardRef((props, ref) => {
   const mapContainer = useRef(null)
   const map = useRef(null)
-  const athleteMarker = useRef(null)
+  const athleteMarker = useRef(null) // For single athlete mode (backward compatibility)
+  const athleteMarkers = useRef(new window.Map()) // Map<athleteId, marker> for multiple athletes
 
   useEffect(() => {
     if (map.current) return
@@ -65,12 +66,24 @@ const Map = forwardRef((props, ref) => {
       if (athleteMarker.current) {
         athleteMarker.current.remove()
       }
+      // Clean up all athlete markers
+      athleteMarkers.current.forEach(marker => marker.remove())
+      athleteMarkers.current.clear()
+
       if (map.current) {
         map.current.remove()
         map.current = null
       }
     }
   }, [])
+
+  // Helper function to get marker color by position
+  const getMarkerColor = (position) => {
+    if (position === 1) return '#FFD700' // Gold
+    if (position === 2) return '#C0C0C0' // Silver
+    if (position === 3) return '#CD7F32' // Bronze
+    return '#ff0000' // Default red
+  }
 
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
@@ -108,12 +121,88 @@ const Map = forwardRef((props, ref) => {
         athleteMarker.current.remove()
         athleteMarker.current = null
       }
+    },
+
+    /**
+     * Update positions for multiple athletes
+     * @param {Array} athletes - Array of {id, name, position, lng, lat}
+     */
+    updateAthletePositions(athletes) {
+      if (!map.current) return
+
+      athletes.forEach(athlete => {
+        const existingMarker = athleteMarkers.current.get(athlete.id)
+
+        if (!existingMarker) {
+          // Create new marker
+          const el = document.createElement('div')
+          el.className = 'athlete-marker'
+          el.style.width = '20px'
+          el.style.height = '20px'
+          el.style.borderRadius = '50%'
+          el.style.backgroundColor = getMarkerColor(athlete.position)
+          el.style.border = '3px solid white'
+          el.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)'
+          el.style.cursor = 'pointer'
+          el.title = `${athlete.name} (#${athlete.position})`
+
+          const marker = new mapboxgl.Marker(el)
+            .setLngLat([athlete.lng, athlete.lat])
+            .addTo(map.current)
+
+          athleteMarkers.current.set(athlete.id, marker)
+        } else {
+          // Update existing marker position and color
+          existingMarker.setLngLat([athlete.lng, athlete.lat])
+          const el = existingMarker.getElement()
+          el.style.backgroundColor = getMarkerColor(athlete.position)
+          el.title = `${athlete.name} (#${athlete.position})`
+        }
+      })
+    },
+
+    /**
+     * Remove a specific athlete marker
+     * @param {number} athleteId - Athlete ID to remove
+     */
+    removeAthleteMarkerById(athleteId) {
+      const marker = athleteMarkers.current.get(athleteId)
+      if (marker) {
+        marker.remove()
+        athleteMarkers.current.delete(athleteId)
+      }
+    },
+
+    /**
+     * Clear all athlete markers (for multi-athlete mode)
+     */
+    clearAllAthleteMarkers() {
+      athleteMarkers.current.forEach(marker => marker.remove())
+      athleteMarkers.current.clear()
+    },
+
+    /**
+     * Fit map to show all athletes
+     */
+    fitToAthletes() {
+      if (!map.current || athleteMarkers.current.size === 0) return
+
+      const bounds = new mapboxgl.LngLatBounds()
+
+      athleteMarkers.current.forEach(marker => {
+        bounds.extend(marker.getLngLat())
+      })
+
+      map.current.fitBounds(bounds, {
+        padding: 100,
+        maxZoom: 15
+      })
     }
   }))
 
   return <div ref={mapContainer} className="map-container" />
 })
 
-Map.displayName = 'Map'
+MapComponent.displayName = 'Map'
 
-export default Map
+export default MapComponent

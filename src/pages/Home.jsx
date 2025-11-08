@@ -6,17 +6,21 @@ import Leaderboard from '../components/Leaderboard'
 import AthleteInfoSheet from '../components/AthleteInfoSheet'
 import ARButton from '../components/ARButton'
 import { createAthleteSimulation } from '../simulations/athleteSimulation'
+import { createMultiAthleteSimulation } from '../simulations/multiAthleteSimulation'
 import { mockAthletes } from '../simulations/mockAthletes'
 
 function Home() {
   const mapRef = useRef(null)
   const [simulation, setSimulation] = useState(null)
   const simulationRef = useRef(null)
+  const [multiSimulation, setMultiSimulation] = useState(null)
+  const multiSimulationRef = useRef(null)
   const [raceStartTime, setRaceStartTime] = useState(null)
   const [isRaceRunning, setIsRaceRunning] = useState(false)
   const [athletes, setAthletes] = useState([])
   const [currentAthleteState, setCurrentAthleteState] = useState(null)
   const [simulatedAthleteId, setSimulatedAthleteId] = useState(null)
+  const [isMultiAthleteMode, setIsMultiAthleteMode] = useState(false)
   const [selectedAthlete, setSelectedAthlete] = useState(null)
   const [isAthleteInfoExpanded, setIsAthleteInfoExpanded] = useState(false)
 
@@ -43,13 +47,22 @@ function Home() {
       case 'start_single_athlete':
         console.log('[Home] Starting single athlete simulation for:', data.athlete?.name, 'initialDistance:', data.athlete?.initialDistance)
 
-        // Stop existing simulation if switching athletes
+        // Stop any existing simulations
         if (simulationRef.current) {
-          console.log('[Home] Stopping existing simulation')
+          console.log('[Home] Stopping existing single simulation')
           simulationRef.current.stop()
           if (mapRef.current) {
             mapRef.current.removeAthleteMarker()
           }
+        }
+        if (multiSimulationRef.current) {
+          console.log('[Home] Stopping existing multi simulation')
+          multiSimulationRef.current.stop()
+          if (mapRef.current) {
+            mapRef.current.clearAllAthleteMarkers()
+          }
+          multiSimulationRef.current = null
+          setMultiSimulation(null)
         }
 
         // Create new simulation with selected athlete
@@ -68,32 +81,16 @@ function Home() {
         simulationRef.current = sim
         setSimulation(sim)
         setSimulatedAthleteId(data.athlete?.id)
+        setIsMultiAthleteMode(false)
         setRaceStartTime(Date.now())
         setIsRaceRunning(true)
         console.log('[Home] Simulation started for athlete ID:', data.athlete?.id)
         break
 
-      case 'start':
-        if (simulationRef.current) {
-          simulationRef.current.start()
-          setRaceStartTime(Date.now())
-          setIsRaceRunning(true)
-        }
-        break
+      case 'start_multiple_athletes':
+        console.log('[Home] Starting multiple athletes simulation with', data.athletes?.length, 'athletes')
 
-      case 'pause':
-        if (simulationRef.current) {
-          simulationRef.current.pause()
-        }
-        break
-
-      case 'resume':
-        if (simulationRef.current) {
-          simulationRef.current.resume()
-        }
-        break
-
-      case 'stop':
+        // Stop any existing simulations
         if (simulationRef.current) {
           simulationRef.current.stop()
           if (mapRef.current) {
@@ -101,21 +98,116 @@ function Home() {
           }
           simulationRef.current = null
           setSimulation(null)
-          setSimulatedAthleteId(null)
-          setIsRaceRunning(false)
-          setRaceStartTime(null)
+        }
+        if (multiSimulationRef.current) {
+          multiSimulationRef.current.stop()
+          if (mapRef.current) {
+            mapRef.current.clearAllAthleteMarkers()
+          }
+        }
+
+        // Create multi-athlete simulation
+        const multiSim = createMultiAthleteSimulation(data.athletes)
+        await multiSim.initialize()
+        console.log('[Home] Multi-athlete simulation initialized')
+
+        multiSim.start()
+        multiSimulationRef.current = multiSim
+        setMultiSimulation(multiSim)
+        setIsMultiAthleteMode(true)
+        setSimulatedAthleteId(null)
+        setRaceStartTime(Date.now())
+        setIsRaceRunning(true)
+        console.log('[Home] Multi-athlete simulation started')
+        break
+
+      case 'start':
+        if (isMultiAthleteMode && multiSimulationRef.current) {
+          multiSimulationRef.current.start()
+          setRaceStartTime(Date.now())
+          setIsRaceRunning(true)
+        } else if (simulationRef.current) {
+          simulationRef.current.start()
+          setRaceStartTime(Date.now())
+          setIsRaceRunning(true)
         }
         break
 
+      case 'pause':
+        if (isMultiAthleteMode && multiSimulationRef.current) {
+          multiSimulationRef.current.pause()
+        } else if (simulationRef.current) {
+          simulationRef.current.pause()
+        }
+        break
+
+      case 'resume':
+        if (isMultiAthleteMode && multiSimulationRef.current) {
+          multiSimulationRef.current.resume()
+        } else if (simulationRef.current) {
+          simulationRef.current.resume()
+        }
+        break
+
+      case 'stop':
+        if (isMultiAthleteMode && multiSimulationRef.current) {
+          multiSimulationRef.current.stop()
+          if (mapRef.current) {
+            mapRef.current.clearAllAthleteMarkers()
+          }
+          multiSimulationRef.current = null
+          setMultiSimulation(null)
+          setIsMultiAthleteMode(false)
+        } else if (simulationRef.current) {
+          simulationRef.current.stop()
+          if (mapRef.current) {
+            mapRef.current.removeAthleteMarker()
+          }
+          simulationRef.current = null
+          setSimulation(null)
+          setSimulatedAthleteId(null)
+        }
+        setIsRaceRunning(false)
+        setRaceStartTime(null)
+        break
+
       case 'reset':
-        if (simulationRef.current) {
+        if (isMultiAthleteMode && multiSimulationRef.current) {
+          multiSimulationRef.current.reset()
+        } else if (simulationRef.current) {
           simulationRef.current.reset()
         }
         break
 
       case 'set_speed':
-        if (simulationRef.current && data.speed) {
+        if (isMultiAthleteMode && multiSimulationRef.current && data.speed) {
+          multiSimulationRef.current.setGlobalSpeed(data.speed)
+        } else if (simulationRef.current && data.speed) {
           simulationRef.current.setSpeed(data.speed)
+        }
+        break
+
+      case 'pause_athlete':
+        if (multiSimulationRef.current && data.athleteId) {
+          multiSimulationRef.current.pauseAthlete(data.athleteId)
+        }
+        break
+
+      case 'resume_athlete':
+        if (multiSimulationRef.current && data.athleteId) {
+          multiSimulationRef.current.resumeAthlete(data.athleteId)
+        }
+        break
+
+      case 'stop_athlete':
+        if (multiSimulationRef.current && data.athleteId) {
+          multiSimulationRef.current.stopAthlete(data.athleteId)
+        }
+        break
+
+      case 'set_athlete_speed':
+        if (multiSimulationRef.current && data.athleteId && data.speed) {
+          multiSimulationRef.current.setAthleteSpeed(data.athleteId, data.speed)
         }
         break
     }
@@ -132,9 +224,9 @@ function Home() {
     setAthletes(athletesWithStats)
   }, [])
 
-  // Update map marker and broadcast state
+  // Update map marker and broadcast state for single athlete
   useEffect(() => {
-    if (!simulation || !mapRef.current) return
+    if (!simulation || !mapRef.current || isMultiAthleteMode) return
 
     const interval = setInterval(() => {
       const state = simulation.getCurrentState()
@@ -152,7 +244,8 @@ function Home() {
         // Broadcast state to SimulationManager window
         localStorage.setItem('simulation_state', JSON.stringify({
           ...state,
-          isRunning: simulation.isRunning
+          isRunning: simulation.isRunning,
+          mode: 'single'
         }))
 
         // Update the correct athlete in the list with simulation data
@@ -174,7 +267,60 @@ function Home() {
     }, 100)
 
     return () => clearInterval(interval)
-  }, [simulation])
+  }, [simulation, isMultiAthleteMode])
+
+  // Update map markers and broadcast state for multiple athletes
+  useEffect(() => {
+    if (!multiSimulation || !mapRef.current || !isMultiAthleteMode) return
+
+    const interval = setInterval(() => {
+      const allStates = multiSimulation.getAllStates()
+
+      if (allStates && allStates.length > 0) {
+        // Update athletes list with current distances
+        setAthletes(prev => {
+          const updated = [...prev]
+
+          allStates.forEach(state => {
+            const athleteIndex = updated.findIndex(a => a.id === state.athleteId)
+            if (athleteIndex !== -1 && state.distanceCovered !== undefined) {
+              updated[athleteIndex] = {
+                ...updated[athleteIndex],
+                distance: state.distanceCovered,
+                speed: state.speed || updated[athleteIndex].speed
+              }
+            }
+          })
+
+          // Sort by distance (descending) to update positions
+          return updated.sort((a, b) => b.distance - a.distance)
+        })
+
+        // Prepare athlete position data for map
+        const athletePositions = allStates.map((state, index) => ({
+          id: state.athleteId,
+          name: state.athlete?.name,
+          position: index + 1, // Position based on order in allStates
+          lng: state.position.lng,
+          lat: state.position.lat
+        }))
+
+        // Update all markers on map
+        mapRef.current.updateAthletePositions(athletePositions)
+
+        // Broadcast all states to SimulationManager
+        localStorage.setItem('simulation_state', JSON.stringify({
+          mode: 'multiple',
+          isRunning: multiSimulation.isRunning,
+          isPaused: multiSimulation.isPaused,
+          athletes: allStates,
+          allFinished: multiSimulation.areAllFinished()
+        }))
+      }
+    }, 100)
+
+    return () => clearInterval(interval)
+  }, [multiSimulation, isMultiAthleteMode])
 
   const handleSelectAthlete = (athlete) => {
     // Center map on selected athlete if they have a position
