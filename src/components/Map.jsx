@@ -1,12 +1,13 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import mapboxgl from 'mapbox-gl'
 import './Map.css'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
-function Map() {
+const Map = forwardRef((props, ref) => {
   const mapContainer = useRef(null)
   const map = useRef(null)
+  const athleteMarker = useRef(null)
 
   useEffect(() => {
     if (map.current) return
@@ -61,6 +62,9 @@ function Map() {
     })
 
     return () => {
+      if (athleteMarker.current) {
+        athleteMarker.current.remove()
+      }
       if (map.current) {
         map.current.remove()
         map.current = null
@@ -68,7 +72,48 @@ function Map() {
     }
   }, [])
 
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    updateAthletePosition(lng, lat) {
+      if (!map.current) return
+
+      if (!athleteMarker.current) {
+        // Create marker on first update
+        const el = document.createElement('div')
+        el.className = 'athlete-marker'
+        el.style.width = '20px'
+        el.style.height = '20px'
+        el.style.borderRadius = '50%'
+        el.style.backgroundColor = '#ff0000'
+        el.style.border = '3px solid white'
+        el.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)'
+
+        athleteMarker.current = new mapboxgl.Marker(el)
+          .setLngLat([lng, lat])
+          .addTo(map.current)
+      } else {
+        // Update existing marker
+        athleteMarker.current.setLngLat([lng, lat])
+      }
+
+      // Center map on athlete
+      map.current.easeTo({
+        center: [lng, lat],
+        duration: 1000
+      })
+    },
+
+    removeAthleteMarker() {
+      if (athleteMarker.current) {
+        athleteMarker.current.remove()
+        athleteMarker.current = null
+      }
+    }
+  }))
+
   return <div ref={mapContainer} className="map-container" />
-}
+})
+
+Map.displayName = 'Map'
 
 export default Map

@@ -1,22 +1,59 @@
+import { useRef, useState, useEffect } from 'react'
 import Map from '../components/Map'
+import Navbar from '../components/Navbar'
+import SimulationControls from '../components/SimulationControls'
+import { createAthleteSimulation } from '../simulations/athleteSimulation'
 
 function Home() {
+  const mapRef = useRef(null)
+  const [simulation, setSimulation] = useState(null)
+  const [showControls, setShowControls] = useState(false)
+
+  const handleStartSimulation = async () => {
+    const sim = createAthleteSimulation()
+    await sim.initialize()
+    setSimulation(sim)
+    setShowControls(true)
+  }
+
+  const handleCloseSimulation = () => {
+    if (simulation) {
+      simulation.stop()
+      if (mapRef.current) {
+        mapRef.current.removeAthleteMarker()
+      }
+    }
+    setSimulation(null)
+    setShowControls(false)
+  }
+
+  // Update map marker when simulation runs
+  useEffect(() => {
+    if (!simulation || !mapRef.current) return
+
+    const interval = setInterval(() => {
+      const state = simulation.getCurrentState()
+      if (state && simulation.isRunning) {
+        mapRef.current.updateAthletePosition(
+          state.position.lng,
+          state.position.lat
+        )
+      }
+    }, 100)
+
+    return () => clearInterval(interval)
+  }, [simulation])
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <h1 style={{
-        position: 'absolute',
-        top: '20px',
-        left: '20px',
-        zIndex: 1000,
-        margin: 0,
-        color: 'white',
-        textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-        fontSize: '2rem',
-        fontWeight: 'bold'
-      }}>
-        Sport Radar
-      </h1>
-      <Map />
+      <Navbar onStartSimulation={handleStartSimulation} />
+      <Map ref={mapRef} />
+      {showControls && simulation && (
+        <SimulationControls
+          simulation={simulation}
+          onClose={handleCloseSimulation}
+        />
+      )}
     </div>
   )
 }
