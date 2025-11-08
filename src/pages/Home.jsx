@@ -5,6 +5,7 @@ import RaceTimer from '../components/RaceTimer'
 import Leaderboard from '../components/Leaderboard'
 import AthleteInfoSheet from '../components/AthleteInfoSheet'
 import { createAthleteSimulation } from '../simulations/athleteSimulation'
+import { mockAthletes } from '../simulations/mockAthletes'
 
 function Home() {
   const mapRef = useRef(null)
@@ -36,7 +37,7 @@ function Home() {
     switch (command) {
       case 'start_single_athlete':
         if (!simulationRef.current) {
-          const sim = createAthleteSimulation()
+          const sim = createAthleteSimulation(data.athlete)
           await sim.initialize()
           if (data.speed) {
             sim.setSpeed(data.speed)
@@ -97,19 +98,13 @@ function Home() {
 
   // Initialize mock athletes
   useEffect(() => {
-    const mockAthletes = [
-      { id: 1, name: 'Sarah Johnson', bib: '101', distance: 42.5, speed: 12.3, position: 1 },
-      { id: 2, name: 'Mike Chen', bib: '102', distance: 41.2, speed: 11.8, position: 2 },
-      { id: 3, name: 'Emma Wilson', bib: '103', distance: 39.8, speed: 11.5, position: 3 },
-      { id: 4, name: 'Carlos Rodriguez', bib: '104', distance: 38.5, speed: 11.2, position: 4 },
-      { id: 5, name: 'Anna Schmidt', bib: '105', distance: 37.2, speed: 10.9, position: 5 },
-      { id: 6, name: 'James Park', bib: '106', distance: 35.8, speed: 10.6, position: 6 },
-      { id: 7, name: 'Maria Silva', bib: '107', distance: 34.5, speed: 10.3, position: 7 },
-      { id: 8, name: 'Tom Anderson', bib: '108', distance: 33.2, speed: 10.0, position: 8 },
-      { id: 9, name: 'Lisa Zhang', bib: '109', distance: 31.8, speed: 9.7, position: 9 },
-      { id: 10, name: 'David Miller', bib: '110', distance: 30.5, speed: 9.4, position: 10 }
-    ]
-    setAthletes(mockAthletes)
+    // Map mock athletes to include distance and speed for display
+    const athletesWithStats = mockAthletes.map(athlete => ({
+      ...athlete,
+      distance: athlete.initialDistance,
+      speed: athlete.baseSpeed
+    }))
+    setAthletes(athletesWithStats)
   }, [])
 
   // Update map marker and broadcast state

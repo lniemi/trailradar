@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
+import { mockAthletes } from '../simulations/mockAthletes';
 
 export default function SimulationManager() {
   const [activeSimulation, setActiveSimulation] = useState(null);
-  const [speed, setSpeed] = useState(4);
+  const [selectedAthlete, setSelectedAthlete] = useState(mockAthletes[0]);
+  const [speed, setSpeed] = useState(mockAthletes[0].baseSpeed);
   const [simulationState, setSimulationState] = useState(null);
 
   // Listen for simulation state updates from the map window
@@ -46,8 +48,18 @@ export default function SimulationManager() {
   };
 
   const handleStartSingleAthlete = () => {
-    sendCommand('start_single_athlete', { speed });
+    sendCommand('start_single_athlete', {
+      speed,
+      athlete: selectedAthlete
+    });
     setActiveSimulation('single_athlete');
+  };
+
+  const handleAthleteChange = (e) => {
+    const athleteId = parseInt(e.target.value);
+    const athlete = mockAthletes.find(a => a.id === athleteId);
+    setSelectedAthlete(athlete);
+    setSpeed(athlete.baseSpeed);
   };
 
   const handleStart = () => {
@@ -89,14 +101,35 @@ export default function SimulationManager() {
           <div className="bg-gray-900 rounded-lg p-6">
             <h2 className="text-xl font-bold mb-4">Start Simulation</h2>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
+              {/* Athlete Selection */}
+              <div>
+                <label className="text-sm text-gray-400 block mb-2">
+                  Select Athlete
+                </label>
+                <select
+                  value={selectedAthlete.id}
+                  onChange={handleAthleteChange}
+                  disabled={activeSimulation !== null}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {mockAthletes.map(athlete => (
+                    <option key={athlete.id} value={athlete.id}>
+                      {athlete.name} (#{athlete.bib}) - {athlete.baseSpeed} km/h
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <button
                 onClick={handleStartSingleAthlete}
-                className="w-full bg-blue-600 hover:bg-blue-700 px-4 py-3 rounded-lg transition-colors text-left"
+                className="w-full bg-blue-600 hover:bg-blue-700 px-4 py-3 rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={activeSimulation !== null}
               >
-                <div className="font-bold">Single Athlete</div>
-                <div className="text-sm text-gray-300">Simulate one athlete along the route</div>
+                <div className="font-bold">Start Single Athlete Simulation</div>
+                <div className="text-sm text-gray-300">
+                  Simulate {selectedAthlete.name} along the route
+                </div>
               </button>
 
               <button
@@ -193,9 +226,26 @@ export default function SimulationManager() {
                   </button>
                 </div>
 
+                {/* Athlete Info */}
+                {simulationState?.athlete && (
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <h3 className="font-bold mb-2">Athlete</h3>
+                    <div className="text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Name:</span>
+                        <span className="font-medium">{simulationState.athlete.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Bib:</span>
+                        <span className="font-medium">#{simulationState.athlete.bib}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Simulation State */}
                 {simulationState && (
-                  <div className="bg-gray-800 rounded-lg p-4 mt-4">
+                  <div className="bg-gray-800 rounded-lg p-4">
                     <h3 className="font-bold mb-3">Live Status</h3>
 
                     <div className="mb-3">

@@ -4,7 +4,7 @@ import { calculateTotalDistance, getPositionAtDistance } from './utils'
  * Athlete simulation class for TOR330 route
  */
 export class AthleteSimulation {
-  constructor() {
+  constructor(athleteData = null) {
     this.routeCoordinates = null
     this.totalDistance = 0
     this.startTime = null
@@ -12,6 +12,7 @@ export class AthleteSimulation {
     this.isRunning = false
     this.isPaused = false
     this.pausedDistance = 0
+    this.athleteData = athleteData // Store athlete info (name, bib, id, etc.)
   }
 
   /**
@@ -121,7 +122,8 @@ export class AthleteSimulation {
         elapsedTime: 0,
         estimatedTotalTime: this.totalDistance / this.speed,
         speed: this.speed,
-        isFinished: false
+        isFinished: false,
+        athlete: this.athleteData
       }
     }
 
@@ -162,15 +164,17 @@ export class AthleteSimulation {
       estimatedTotalTime,
       speed: this.speed,
       isFinished,
-      isPaused: this.isPaused
+      isPaused: this.isPaused,
+      athlete: this.athleteData
     }
   }
 }
 
 /**
  * Create a new athlete simulation instance
+ * @param {Object} athleteData - Optional athlete data (id, name, bib, baseSpeed, etc.)
  * @returns {AthleteSimulation}
  */
-export function createAthleteSimulation() {
-  return new AthleteSimulation()
+export function createAthleteSimulation(athleteData = null) {
+  return new AthleteSimulation(athleteData)
 }
