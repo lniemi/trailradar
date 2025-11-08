@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './AthleteInfoSheet.css'
 
 export default function AthleteInfoSheet({ athletes = [], onSelectAthlete }) {
@@ -10,6 +10,22 @@ export default function AthleteInfoSheet({ athletes = [], onSelectAthlete }) {
     athlete.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (athlete.bib && athlete.bib.toString().includes(searchTerm))
   )
+
+  // Update selected athlete data when athletes array changes
+  useEffect(() => {
+    if (selectedAthlete) {
+      const updatedAthlete = athletes.find(a => a.id === selectedAthlete.id)
+      if (updatedAthlete) {
+        setSelectedAthlete(updatedAthlete)
+      }
+    }
+  }, [athletes])
+
+  // Calculate current position based on distance ranking
+  const getCurrentPosition = (athlete) => {
+    const sorted = [...athletes].sort((a, b) => b.distance - a.distance)
+    return sorted.findIndex(a => a.id === athlete.id) + 1
+  }
 
   const handleSelectAthlete = (athlete) => {
     setSelectedAthlete(athlete)
@@ -117,7 +133,7 @@ export default function AthleteInfoSheet({ athletes = [], onSelectAthlete }) {
 
             <div className="stat-item">
               <span className="position-label">Position</span>
-              <span className="position-value">{selectedAthlete.position || 15}</span>
+              <span className="position-value">{getCurrentPosition(selectedAthlete)}</span>
             </div>
 
             {selectedAthlete.speed && (

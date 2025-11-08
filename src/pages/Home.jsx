@@ -130,15 +130,16 @@ function Home() {
           isRunning: simulation.isRunning
         }))
 
-        // Update the first athlete in the list with simulation data
-        if (state.distance !== undefined) {
+        // Update the correct athlete in the list with simulation data
+        if (state.distanceCovered !== undefined && state.athlete) {
           setAthletes(prev => {
             const updated = [...prev]
-            if (updated[0]) {
-              updated[0] = {
-                ...updated[0],
-                distance: state.distance,
-                speed: state.speed || updated[0].speed
+            const athleteIndex = updated.findIndex(a => a.id === state.athlete.id)
+            if (athleteIndex !== -1) {
+              updated[athleteIndex] = {
+                ...updated[athleteIndex],
+                distance: state.distanceCovered,
+                speed: state.speed || updated[athleteIndex].speed
               }
             }
             return updated
