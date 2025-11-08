@@ -8,17 +8,19 @@ export default function ARButton({ isAthleteInfoExpanded = false, onClick }) {
       aria-label="Toggle AR view"
     >
       <svg
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
+        width="28"
+        height="28"
+        viewBox="0 0 32 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6" />
-        <line x1="2" y1="20" x2="2.01" y2="20" />
+        {/* Eye outline */}
+        <path d="M1 12s4-8 15-8 15 8 15 8-4 8-15 8-15-8-15-8z" />
+        {/* Iris circle */}
+        <circle cx="16" cy="12" r="5" stroke="currentColor" strokeWidth="1.5" fill="none" />
       </svg>
     </button>
   )
