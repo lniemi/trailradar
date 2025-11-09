@@ -360,12 +360,12 @@ function CameraPositioner({ onCameraUpdate, origin, controlsRef }) {
   const { camera } = useThree()
   const [isInitialized, setIsInitialized] = useState(false)
 
-  // Set initial camera target to origin
+  // Set initial camera target
   useEffect(() => {
     if (!controlsRef?.current || isInitialized) return
 
-    // Point camera at the origin (0, 0, 0 in world space)
-    controlsRef.current.target.set(0, 0, 0)
+    // Set target to specific position (Z is positive in world space, but displays as negative due to coordinate conversion)
+    controlsRef.current.target.set(938.0, 838.6, -1007.1)
     controlsRef.current.update()
     setIsInitialized(true)
   }, [controlsRef, isInitialized])
@@ -414,7 +414,7 @@ function ARScene({ athletePositions, viewerPosition, onCameraUpdate }) {
   const controlsRef = useRef(null)
   const [mapOrigin] = useState(() => {
     // Use fixed origin for consistent camera positioning
-    return { lat: 45.66677, lng: 7.05964 }
+    return { lat: 45.66078, lng: 7.09731 }
   })
 
   const handleTerrainReady = useCallback((data) => {
@@ -560,7 +560,7 @@ export default function ARView({ isOpen, onClose, athletePositions = [], current
 
       <Canvas
         camera={{
-          position: [8723.3, 2643.2, -2766.9],
+          position: [4189.0, 2044.2, -952.6],
           fov: 60,
           near: 1,
           far: 100000
