@@ -277,17 +277,34 @@ The root directory contains source files including `TOR330-CERT-2025.gpx` (origi
 - Camera target example: `controls.target.set(coords.x, 0, -coords.y)`
 - Origin positioning: `mapView.position.set(-originCoords.x, 0, originCoords.y)`
 
-**Raycasting for Terrain Height:**
-- Terrain tiles load asynchronously, so immediate raycasting may fail
-- Use `useFrame()` to continuously raycast until terrain tiles are loaded
+**Route Rendering on 3D Terrain:**
+- **IMPORTANT**: Do NOT use raycasting for route positioning - terrain tiles load asynchronously and raycasting returns 0 valid heights
+- **Use GeoJSON elevation data directly**: Route coordinates format `[longitude, latitude, elevation]` already contains elevation from original GPX
+- The MapBox terrain tiles and GeoJSON elevation use the same source data, so they match perfectly
+- Route implementation:
+  - Load route from GeoJSON and sample points (e.g., every 10th point) for performance
+  - Convert each coordinate to world space using `coordsToWorld(lat, lng)`
+  - Use elevation directly from `coord[2]` (third value in GeoJSON coordinate array)
+  - Create `THREE.Vector3(pos.x, elevation + offset, pos.z)` for each point
+  - Use `THREE.TubeGeometry` with `THREE.CatmullRomCurve3` for smooth 3D tube following terrain
+  - Material: `MeshStandardMaterial` with emissive properties for better visibility
+  - Tube radius: ~20m, offset: ~10m above terrain for visibility
+- Route updates every frame via `useFrame()` to rebuild geometry as needed
+- Dispose old geometry before creating new to prevent memory leaks
+
+**Athlete Marker Positioning:**
+- Athlete markers use raycasting for dynamic positioning (works for point objects)
 - Raycast from high above (e.g., y: 10000) downward to get terrain elevation
-- Only position objects when `terrainHeight > 0` (successful raycast)
-- Offset objects above terrain (e.g., +50m for route, +100m for markers) to ensure visibility
+- Use `useFrame()` to continuously raycast until terrain tiles are loaded
+- Only position markers when `terrainHeight > 0` (successful raycast)
+- Offset markers above terrain (+100m) to ensure visibility
+- Markers are billboarded (always face camera) for better visibility
 
 **Performance:**
 - Use `LODRaycast` for efficient level-of-detail management
 - Sample route points (e.g., every 10th point) to reduce geometry complexity
 - LOD updates automatically via `onBeforeRender` callback
+- Limit tube geometry segments: `Math.min(points.length * 2, 1000)` to prevent excessive geometry
 
 ## Code Patterns
 

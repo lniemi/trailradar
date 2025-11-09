@@ -351,8 +351,8 @@ function RouteLine({ coordsToWorld, getHeightAt, mapView }) {
       maxHeight = Math.max(maxHeight, elevation)
       minHeight = Math.min(minHeight, elevation)
 
-      // Use the GeoJSON elevation directly with a small offset for visibility
-      points.push(new THREE.Vector3(pos.x, elevation + 10, pos.z))
+      // Use the GeoJSON elevation directly with offset for visibility over complex terrain
+      points.push(new THREE.Vector3(pos.x, elevation + 50, pos.z))
     }
 
     // Debug output (once every ~60 frames)
