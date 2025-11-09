@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Canvas, useThree, useFrame } from '@react-three/fiber'
-import { Sky, OrbitControls, Html } from '@react-three/drei'
+import { OrbitControls, Html } from '@react-three/drei'
 import * as THREE from 'three'
-import { MapView, MapBoxProvider, UnitsUtils, MapNode } from 'geo-three'
+import { MapView, MapBoxProvider, UnitsUtils, LODRaycast } from 'geo-three'
 import './ARView.css'
 
 // Helper function to calculate distance between two GPS points (in meters)
@@ -53,64 +53,105 @@ function calculateAthleteSpread(athletes) {
   return haversineDistance(minLat, minLng, maxLat, maxLng)
 }
 
-// Terrain component using Geo-Three
+// Terrain component using Geo-Three with height data
 function Terrain({ origin, onReady }) {
   const { scene } = useThree()
   const [isLoading, setIsLoading] = useState(true)
   const mapViewRef = useRef(null)
+  const isLoadedRef = useRef(false)
 
   useEffect(() => {
-    if (!origin) return
+    if (!origin || isLoadedRef.current) return
 
     const loadTerrain = async () => {
       setIsLoading(true)
 
       try {
-        // Create map provider (Mapbox)
-        // MapBoxProvider requires: apiToken, styleId (default: 'mapbox.satellite')
-        const provider = new MapBoxProvider(
+        // Create MapBox provider for satellite imagery
+        // MapBoxProvider(apiToken, styleId, mode, format, useHDPI, version)
+        const satelliteProvider = new MapBoxProvider(
           import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
-          'mapbox/satellite-v9'
+          'mapbox/satellite-v9',
+          MapBoxProvider.STYLE,
+          'png',
+          false
         )
 
-        // Create planar map view
-        const mapView = new MapView(MapView.PLANAR, provider)
+        // Create MapBox provider for terrain height data (terrain-rgb tileset)
+        const heightProvider = new MapBoxProvider(
+          import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
+          'mapbox.terrain-rgb',
+          MapBoxProvider.MAP_ID,
+          'pngraw',
+          false
+        )
 
-        // Scale to kilometers for better visualization
-        mapView.scale.set(0.001, 0.001, 0.001)
+        // Create planar map view with height data support
+        // MapView(root, provider, heightProvider)
+        const mapView = new MapView(MapView.PLANAR, satelliteProvider, heightProvider)
 
-        // Convert origin lat/lng to XY coordinates
-        const coords = UnitsUtils.datumsToSpherical(origin.lat, origin.lng)
+        // Override with LODRaycast for better performance
+        mapView.lod = new LODRaycast()
 
-        // Position the map at the origin
-        mapView.position.set(coords.x * 0.001, 0, -coords.y * 0.001)
+        // Convert origin lat/lng to Spherical Mercator coordinates
+        const originCoords = UnitsUtils.datumsToSpherical(origin.lat, origin.lng)
+
+        // Center the map at origin (invert Y for WebGL coordinate system)
+        mapView.position.set(-originCoords.x, 0, originCoords.y)
 
         // Remove old terrain if exists
         if (mapViewRef.current) {
           scene.remove(mapViewRef.current)
+          mapViewRef.current.traverse((child) => {
+            if (child.geometry) child.geometry.dispose()
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach(mat => mat.dispose())
+              } else {
+                child.material.dispose()
+              }
+            }
+          })
         }
 
         // Add new terrain to scene
         scene.add(mapView)
         mapViewRef.current = mapView
 
-        // Pass helper functions to parent
+        // Helper to convert lat/lng to world coordinates
+        const coordsToWorld = (lat, lng) => {
+          const coords = UnitsUtils.datumsToSpherical(lat, lng)
+          return {
+            x: coords.x - originCoords.x,
+            y: 0,
+            z: -(coords.y - originCoords.y)
+          }
+        }
+
+        // Helper to get terrain height at a position using raycasting
+        const getHeightAt = (lat, lng) => {
+          const pos = coordsToWorld(lat, lng)
+          const raycaster = new THREE.Raycaster()
+          raycaster.set(
+            new THREE.Vector3(pos.x, 10000, pos.z),
+            new THREE.Vector3(0, -1, 0)
+          )
+          const intersects = raycaster.intersectObject(mapView, true)
+          return intersects.length > 0 ? intersects[0].point.y : 0
+        }
+
+        // Pass utilities to parent
         if (onReady) {
           onReady({
             mapView,
-            coordsToWorld: (lat, lng) => {
-              const c = UnitsUtils.datumsToSpherical(lat, lng)
-              const originCoords = UnitsUtils.datumsToSpherical(origin.lat, origin.lng)
-              return {
-                x: (c.x - originCoords.x) * 0.001,
-                z: -(c.y - originCoords.y) * 0.001
-              }
-            }
+            coordsToWorld,
+            getHeightAt
           })
         }
 
         setIsLoading(false)
-        console.log('Geo-Three terrain loaded successfully')
+        isLoadedRef.current = true
+        console.log('Geo-Three terrain with height data loaded successfully')
       } catch (error) {
         console.error('Failed to load Geo-Three terrain:', error)
         setIsLoading(false)
@@ -122,8 +163,19 @@ function Terrain({ origin, onReady }) {
     return () => {
       if (mapViewRef.current) {
         scene.remove(mapViewRef.current)
+        mapViewRef.current.traverse((child) => {
+          if (child.geometry) child.geometry.dispose()
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach(mat => mat.dispose())
+            } else {
+              child.material.dispose()
+            }
+          }
+        })
         mapViewRef.current = null
       }
+      isLoadedRef.current = false
     }
   }, [origin, scene, onReady])
 
@@ -136,16 +188,16 @@ function Terrain({ origin, onReady }) {
         borderRadius: '0.5rem',
         fontSize: '1rem'
       }}>
-        Loading terrain...
+        Loading 3D terrain with satellite imagery...
       </div>
     </Html>
   ) : null
 }
 
 // Athlete marker component rendered in 3D space
-function AthleteMarker({ athlete, coordsToWorld, viewerPosition }) {
+function AthleteMarker({ athlete, coordsToWorld, getHeightAt, viewerPosition }) {
   const meshRef = useRef()
-  const textRef = useRef()
+  const groupRef = useRef()
   const [worldPos, setWorldPos] = useState(null)
   const [distance, setDistance] = useState(0)
 
@@ -155,10 +207,17 @@ function AthleteMarker({ athlete, coordsToWorld, viewerPosition }) {
     // Convert GPS to WebGL coordinates
     const pos = coordsToWorld(athlete.lat, athlete.lng)
 
-    // Elevation offset to put marker above terrain (increased for better visibility from nadir)
-    const elevationOffset = 100 // 100 meters in world space
+    // Get terrain height at position (will raycast once terrain is loaded)
+    const terrainHeight = getHeightAt ? getHeightAt(athlete.lat, athlete.lng) : 0
 
-    setWorldPos({ x: pos.x, y: elevationOffset * 0.001, z: pos.z })
+    // Elevation offset to put marker above terrain
+    const markerHeight = 100 // 100 meters above terrain
+
+    setWorldPos({
+      x: pos.x,
+      y: terrainHeight + markerHeight,
+      z: pos.z
+    })
 
     // Calculate distance from viewer
     const dist = haversineDistance(
@@ -168,15 +227,12 @@ function AthleteMarker({ athlete, coordsToWorld, viewerPosition }) {
       athlete.lng
     )
     setDistance(dist)
-  }, [athlete, coordsToWorld, viewerPosition])
+  }, [athlete, coordsToWorld, getHeightAt, viewerPosition])
 
-  // Billboard effect - always face camera
+  // Billboard effect - keep marker facing camera
   useFrame(({ camera }) => {
     if (meshRef.current) {
       meshRef.current.quaternion.copy(camera.quaternion)
-    }
-    if (textRef.current) {
-      textRef.current.quaternion.copy(camera.quaternion)
     }
   })
 
@@ -191,59 +247,53 @@ function AthleteMarker({ athlete, coordsToWorld, viewerPosition }) {
   if (!worldPos) return null
 
   return (
-    <group position={[worldPos.x, worldPos.y, worldPos.z]}>
-      {/* Vertical pole (increased size for visibility from above) */}
-      <mesh position={[0, 0.05, 0]}>
-        <cylinderGeometry args={[0.004, 0.004, 0.1, 8]} />
-        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.5} />
+    <group ref={groupRef} position={[worldPos.x, worldPos.y, worldPos.z]}>
+      {/* Vertical line from ground to marker */}
+      <mesh position={[0, -worldPos.y / 2, 0]}>
+        <cylinderGeometry args={[2, 2, worldPos.y, 8]} />
+        <meshBasicMaterial color={getColor()} transparent opacity={0.4} />
       </mesh>
 
-      {/* Athlete flag/marker (billboard, increased size) */}
-      <mesh ref={meshRef} position={[0, 0.11, 0]}>
-        <planeGeometry args={[0.12, 0.06]} />
+      {/* Marker sphere */}
+      <mesh ref={meshRef}>
+        <sphereGeometry args={[10, 16, 16]} />
         <meshStandardMaterial
           color={getColor()}
-          side={THREE.DoubleSide}
           emissive={getColor()}
-          emissiveIntensity={0.3}
+          emissiveIntensity={0.5}
         />
       </mesh>
 
-      {/* Text label with athlete info */}
-      <mesh ref={textRef} position={[0, 0.1, 0]}>
-        <Html
-          center
-          distanceFactor={0.15}
-          style={{
-            pointerEvents: 'none',
-            userSelect: 'none',
-            background: 'rgba(0,0,0,0.8)',
-            color: 'white',
-            padding: '4px 8px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            whiteSpace: 'nowrap',
-            border: `2px solid ${getColor()}`
-          }}
-        >
-          <div>
+      {/* Label */}
+      <Html distanceFactor={50} position={[0, 20, 0]}>
+        <div style={{
+          background: 'rgba(0,0,0,0.85)',
+          color: 'white',
+          padding: '0.5rem 1rem',
+          borderRadius: '0.5rem',
+          fontSize: '0.9rem',
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          userSelect: 'none',
+          border: `2px solid ${getColor()}`,
+          boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>
             #{athlete.position} {athlete.name}
-            <br />
-            <span style={{ fontSize: '10px', opacity: 0.8 }}>
-              {distance > 1000
-                ? `${(distance / 1000).toFixed(1)} km`
-                : `${Math.round(distance)} m`}
-            </span>
           </div>
-        </Html>
-      </mesh>
+          <div style={{ fontSize: '0.75rem', opacity: 0.9 }}>
+            {distance > 1000
+              ? `${(distance / 1000).toFixed(1)} km`
+              : `${Math.round(distance)} m`}
+          </div>
+        </div>
+      </Html>
     </group>
   )
 }
 
-// Route line component
-function RouteLine({ coordsToWorld }) {
+// Route line component to show the race path
+function RouteLine({ coordsToWorld, getHeightAt }) {
   const [routePoints, setRoutePoints] = useState([])
 
   useEffect(() => {
@@ -256,17 +306,21 @@ function RouteLine({ coordsToWorld }) {
         if (data.features && data.features[0]) {
           const coords = data.features[0].geometry.coordinates[0]
 
+          // Sample points to reduce complexity (every 10th point)
+          const sampledCoords = coords.filter((_, i) => i % 10 === 0)
+
           // Convert route coordinates to 3D world positions
-          const points = coords.map(coord => {
-            const pos = coordsToWorld(coord[1], coord[0]) // [lat, lng]
+          const points = sampledCoords.map(coord => {
+            const pos = coordsToWorld(coord[1], coord[0]) // [lng, lat] -> [lat, lng]
+            const terrainHeight = getHeightAt ? getHeightAt(coord[1], coord[0]) : 0
             // Offset slightly above terrain to avoid z-fighting
-            return new THREE.Vector3(pos.x, 0.01, pos.z)
+            return new THREE.Vector3(pos.x, terrainHeight + 5, pos.z)
           })
           setRoutePoints(points)
         }
       })
       .catch(err => console.error('Failed to load route:', err))
-  }, [coordsToWorld])
+  }, [coordsToWorld, getHeightAt])
 
   if (routePoints.length === 0) return null
 
@@ -280,65 +334,53 @@ function RouteLine({ coordsToWorld }) {
           itemSize={3}
         />
       </bufferGeometry>
-      <lineBasicMaterial color="#ffff00" linewidth={3} transparent opacity={0.8} />
+      <lineBasicMaterial color="#FFFF00" linewidth={3} transparent opacity={0.8} />
     </line>
   )
 }
 
-// Camera controller component
-function CameraController({ athletePositions, coordsToWorld }) {
+// Camera positioning component
+function CameraPositioner({ athletePositions, coordsToWorld }) {
   const { camera } = useThree()
   const [isPositioned, setIsPositioned] = useState(false)
 
   useEffect(() => {
-    if (!coordsToWorld || !athletePositions || athletePositions.length === 0 || isPositioned) return
+    if (!coordsToWorld || !athletePositions || athletePositions.length === 0 || isPositioned) {
+      return
+    }
 
-    // Calculate centroid of all athletes
+    // Calculate centroid
     const centroid = calculateAthleteCentroid(athletePositions)
     if (!centroid) return
 
-    // Calculate spread to determine camera height
+    // Calculate spread to determine camera distance
     const spread = calculateAthleteSpread(athletePositions)
 
     // Convert centroid to world coordinates
     const centerPos = coordsToWorld(centroid.lat, centroid.lng)
 
-    // Calculate camera height based on spread and FOV
-    // Using a factor to ensure all athletes fit in view
-    // For FOV=60°, height = (spread / 2) / tan(30°) ≈ spread * 0.866
-    const baseHeight = Math.max(spread * 0.001 * 1.2, 2) // At least 2km high
-    const cameraHeight = baseHeight
+    // Calculate camera position for good overview
+    const cameraDistance = Math.max(spread * 1.5, 5000) // Minimum 5km distance
+    const cameraHeight = cameraDistance * 0.7
 
-    // Set camera for nadir (top-down) view
-    camera.position.set(centerPos.x, cameraHeight, centerPos.z)
+    // Position camera at an angle for better 3D view
+    camera.position.set(
+      centerPos.x,
+      cameraHeight,
+      centerPos.z + cameraDistance
+    )
 
-    // Look straight down at the centroid
+    // Look at the centroid
     camera.lookAt(centerPos.x, 0, centerPos.z)
 
-    // Set up vector for proper orientation
-    camera.up.set(0, 1, 0)
-
     setIsPositioned(true)
-    console.log('Camera positioned for nadir view:', {
+    console.log('Camera positioned:', {
       centroid,
-      spread: spread / 1000 + 'km',
-      height: cameraHeight + 'km',
-      position: { x: centerPos.x, y: cameraHeight, z: centerPos.z }
+      spread: (spread / 1000).toFixed(2) + ' km',
+      height: (cameraHeight / 1000).toFixed(2) + ' km',
+      distance: (cameraDistance / 1000).toFixed(2) + ' km'
     })
   }, [camera, athletePositions, coordsToWorld, isPositioned])
-
-  return null
-}
-
-// Map update component to handle LOD updates
-function MapUpdater({ mapView }) {
-  const { camera, gl, scene } = useThree()
-
-  useFrame(() => {
-    if (mapView) {
-      mapView.lod.updateLOD(mapView, camera, gl, scene)
-    }
-  })
 
   return null
 }
@@ -346,31 +388,32 @@ function MapUpdater({ mapView }) {
 // Main AR Scene component
 function ARScene({ athletePositions, viewerPosition }) {
   const [terrainData, setTerrainData] = useState(null)
+  const [mapOrigin] = useState(() => {
+    // Calculate origin once on mount
+    return athletePositions && athletePositions.length > 0
+      ? calculateAthleteCentroid(athletePositions)
+      : viewerPosition
+  })
 
-  const handleTerrainReady = (data) => {
+  const handleTerrainReady = useCallback((data) => {
     setTerrainData(data)
-    console.log('Terrain ready')
-  }
-
-  // Use athlete centroid as map origin if athletes exist, otherwise use viewer position
-  const mapOrigin = athletePositions && athletePositions.length > 0
-    ? calculateAthleteCentroid(athletePositions)
-    : viewerPosition
+    console.log('Terrain ready with height mode and raycasting support')
+  }, [])
 
   return (
     <>
-      {/* Sky with realistic atmosphere */}
-      <Sky
-        distance={450000}
-        sunPosition={[100, 20, 100]}
-        inclination={0.6}
-        azimuth={0.25}
+      {/* Lighting */}
+      <ambientLight intensity={0.6} />
+      <directionalLight
+        position={[100, 100, 50]}
+        intensity={1.0}
+        castShadow
       />
-
-      {/* Ambient lighting */}
-      <ambientLight intensity={0.8} />
-      <directionalLight position={[10, 10, 5]} intensity={1.2} />
-      <hemisphereLight intensity={0.6} groundColor="#553311" />
+      <hemisphereLight
+        intensity={0.4}
+        color="#ffffff"
+        groundColor="#444444"
+      />
 
       {/* Load terrain with Geo-Three centered on athletes */}
       {mapOrigin && (
@@ -380,11 +423,13 @@ function ARScene({ athletePositions, viewerPosition }) {
         />
       )}
 
-      {/* Map LOD updater */}
-      {terrainData?.mapView && <MapUpdater mapView={terrainData.mapView} />}
-
       {/* Route line */}
-      {terrainData?.coordsToWorld && <RouteLine coordsToWorld={terrainData.coordsToWorld} />}
+      {terrainData?.coordsToWorld && (
+        <RouteLine
+          coordsToWorld={terrainData.coordsToWorld}
+          getHeightAt={terrainData.getHeightAt}
+        />
+      )}
 
       {/* Athlete markers */}
       {terrainData?.coordsToWorld && viewerPosition && athletePositions.map(athlete => (
@@ -392,33 +437,32 @@ function ARScene({ athletePositions, viewerPosition }) {
           key={athlete.id}
           athlete={athlete}
           coordsToWorld={terrainData.coordsToWorld}
+          getHeightAt={terrainData.getHeightAt}
           viewerPosition={viewerPosition}
         />
       ))}
 
-      {/* Camera controls - OrbitControls for nadir view */}
+      {/* Orbit controls for camera manipulation */}
       <OrbitControls
-        enablePan={true}
-        enableZoom={true}
-        minDistance={0.5}
-        maxDistance={20}
-        minPolarAngle={0} // Allow looking straight up at sky
-        maxPolarAngle={Math.PI * 0.75} // Limit to 135° (prevent going too horizontal)
-        enableDamping={true}
+        enableDamping
         dampingFactor={0.05}
-        rotateSpeed={0.5}
-        zoomSpeed={0.8}
+        minDistance={1000}
+        maxDistance={50000}
+        maxPolarAngle={Math.PI / 2}
       />
 
-      {/* Position camera for nadir view above athletes */}
-      {terrainData?.coordsToWorld && athletePositions && athletePositions.length > 0 && (
-        <CameraController athletePositions={athletePositions} coordsToWorld={terrainData.coordsToWorld} />
+      {/* Camera positioner */}
+      {terrainData?.coordsToWorld && (
+        <CameraPositioner
+          athletePositions={athletePositions}
+          coordsToWorld={terrainData.coordsToWorld}
+        />
       )}
     </>
   )
 }
 
-// Main AR View component
+// Main ARView component - wrapper for Canvas
 export default function ARView({ isOpen, onClose, athletePositions = [], currentPosition = null }) {
   const [viewerPosition, setViewerPosition] = useState(null)
 
@@ -434,66 +478,60 @@ export default function ARView({ isOpen, onClose, athletePositions = [], current
 
   if (!isOpen) return null
 
+  // Use mock data if no real data provided (for testing)
+  const positions = athletePositions.length > 0 ? athletePositions : [
+    { id: '1', name: 'Athlete 1', position: 1, lat: 45.7780, lng: 6.8640 },
+    { id: '2', name: 'Athlete 2', position: 2, lat: 45.7800, lng: 6.8660 },
+    { id: '3', name: 'Athlete 3', position: 3, lat: 45.7820, lng: 6.8680 },
+  ]
+
+  const viewer = viewerPosition || { lat: 45.7780, lng: 6.8640 }
+
   return (
-    <div className="ar-view">
-      {/* Header */}
-      <div className="ar-header">
-        <div className="view-info">
-          <h3>AR View - Geo-Three Terrain</h3>
-          {viewerPosition && (
-            <p className="position-info">
-              Elevation: {Math.round(viewerPosition.elevation)}m |
-              Lat: {viewerPosition.lat.toFixed(5)} |
-              Lng: {viewerPosition.lng.toFixed(5)}
-            </p>
-          )}
-        </div>
-        <button className="close-button" onClick={onClose}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-        </button>
-      </div>
-
-      {/* Control hints */}
-      <div className="control-hint">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" opacity="0.6">
-          <path d="M12 2v4m0 0a8 8 0 018 8h4m-4 0l3-3m-3 3l3 3"/>
+    <div className="ar-view-container">
+      {/* Close button */}
+      <button
+        className="ar-close-button"
+        onClick={onClose}
+        aria-label="Close AR view"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round"/>
         </svg>
-        Drag to rotate 360° • Scroll to zoom • Right-drag to pan
-      </div>
+      </button>
 
-      {/* Athlete count indicator */}
-      {athletePositions.length > 0 && (
-        <div className="athlete-count">
-          {athletePositions.length} athlete{athletePositions.length !== 1 ? 's' : ''} visible
-        </div>
-      )}
-
-      {/* 3D Canvas */}
       <Canvas
         camera={{
+          position: [0, 10000, 10000],
           fov: 60,
-          near: 0.01,
-          far: 50,
-          position: [0, 5, 0]
+          near: 1,
+          far: 100000
         }}
-        style={{ background: '#87CEEB' }}
         gl={{
           antialias: true,
-          alpha: false
+          alpha: false,
+          powerPreference: "high-performance"
         }}
       >
         <ARScene
-          athletePositions={athletePositions}
-          viewerPosition={viewerPosition}
+          athletePositions={positions}
+          viewerPosition={viewer}
         />
       </Canvas>
 
-      {/* Compass */}
-      <div className="ar-compass">
-        <div className="compass-arrow"></div>
-        <div className="compass-label">N</div>
+      {/* UI Overlay */}
+      <div className="ar-controls">
+        <div className="ar-info">
+          <h3>3D Terrain View</h3>
+          <p>Height Mode: Enabled</p>
+          <p>Satellite: MapBox</p>
+          <p>LOD: Raycast</p>
+          {viewerPosition && (
+            <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', opacity: 0.8 }}>
+              Lat: {viewerPosition.lat.toFixed(5)} | Lng: {viewerPosition.lng.toFixed(5)}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
