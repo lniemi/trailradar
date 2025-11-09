@@ -166,6 +166,7 @@ function AthleteMarker({ athlete, coordsToWorld, viewerPosition }) {
   const groupRef = useRef()
   const [worldPos, setWorldPos] = useState(null)
   const [distance, setDistance] = useState(0)
+  const [cameraDistance, setCameraDistance] = useState(0)
 
   useEffect(() => {
     if (!coordsToWorld || !athlete || !viewerPosition) return
@@ -179,6 +180,14 @@ function AthleteMarker({ athlete, coordsToWorld, viewerPosition }) {
     )
     setDistance(dist)
   }, [athlete, viewerPosition, coordsToWorld])
+
+  // Calculate distance from camera to athlete marker
+  useFrame(({ camera }) => {
+    if (worldPos) {
+      const dist = camera.position.distanceTo(new THREE.Vector3(worldPos.x, worldPos.y, worldPos.z))
+      setCameraDistance(dist)
+    }
+  })
 
   // Update position every frame using elevation data from athlete state
   useFrame(() => {
@@ -218,6 +227,15 @@ function AthleteMarker({ athlete, coordsToWorld, viewerPosition }) {
     return '#FF0000' // Red
   }
 
+  // Calculate dynamic distance factor based on camera distance
+  const getDistanceFactor = () => {
+    if (cameraDistance < 100) return 150      // Very close: small banner
+    if (cameraDistance < 1000) return 400     // 100m radius: little bit bigger
+    if (cameraDistance < 3000) return 800     // 1km radius: more bigger
+    if (cameraDistance < 10000) return 1500   // 3km radius: very much bigger
+    return 2500                               // 10km+ radius: very very much bigger
+  }
+
   if (!worldPos) return null
 
   return (
@@ -239,23 +257,23 @@ function AthleteMarker({ athlete, coordsToWorld, viewerPosition }) {
       </mesh>
 
       {/* Label */}
-      <Html distanceFactor={50} position={[0, 20, 0]}>
+      <Html distanceFactor={getDistanceFactor()} position={[0, 20, 0]}>
         <div style={{
-          background: 'rgba(0,0,0,0.85)',
+          background: 'rgba(0,0,0,0.9)',
           color: 'white',
-          padding: '0.5rem 1rem',
-          borderRadius: '0.5rem',
-          fontSize: '0.9rem',
+          padding: '1.5rem 2.5rem',
+          borderRadius: '1rem',
+          fontSize: '2rem',
           whiteSpace: 'nowrap',
           pointerEvents: 'none',
           userSelect: 'none',
-          border: `2px solid ${getColor()}`,
-          boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+          border: `4px solid ${getColor()}`,
+          boxShadow: '0 8px 16px rgba(0,0,0,0.6)'
         }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '0.75rem' }}>
             #{athlete.position} {athlete.name}
           </div>
-          <div style={{ fontSize: '0.75rem', opacity: 0.9 }}>
+          <div style={{ fontSize: '1.5rem', opacity: 0.9 }}>
             {distance > 1000
               ? `${(distance / 1000).toFixed(1)} km`
               : `${Math.round(distance)} m`}
