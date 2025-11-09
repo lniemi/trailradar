@@ -17,6 +17,42 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   return R * c
 }
 
+// Calculate geographic centroid of athletes
+function calculateAthleteCentroid(athletes) {
+  if (!athletes || athletes.length === 0) return null
+
+  let sumLat = 0
+  let sumLng = 0
+
+  athletes.forEach(athlete => {
+    sumLat += athlete.lat
+    sumLng += athlete.lng
+  })
+
+  return {
+    lat: sumLat / athletes.length,
+    lng: sumLng / athletes.length
+  }
+}
+
+// Calculate bounding box diagonal distance for athletes
+function calculateAthleteSpread(athletes) {
+  if (!athletes || athletes.length === 0) return 0
+
+  let minLat = Infinity, maxLat = -Infinity
+  let minLng = Infinity, maxLng = -Infinity
+
+  athletes.forEach(athlete => {
+    minLat = Math.min(minLat, athlete.lat)
+    maxLat = Math.max(maxLat, athlete.lat)
+    minLng = Math.min(minLng, athlete.lng)
+    maxLng = Math.max(maxLng, athlete.lng)
+  })
+
+  // Calculate diagonal distance
+  return haversineDistance(minLat, minLng, maxLat, maxLng)
+}
+
 // Terrain component using Geo-Three
 function Terrain({ origin, onReady }) {
   const { scene } = useThree()
@@ -119,8 +155,8 @@ function AthleteMarker({ athlete, coordsToWorld, viewerPosition }) {
     // Convert GPS to WebGL coordinates
     const pos = coordsToWorld(athlete.lat, athlete.lng)
 
-    // Elevation offset to put marker above terrain
-    const elevationOffset = 50 // 50 meters in world space
+    // Elevation offset to put marker above terrain (increased for better visibility from nadir)
+    const elevationOffset = 100 // 100 meters in world space
 
     setWorldPos({ x: pos.x, y: elevationOffset * 0.001, z: pos.z })
 
@@ -156,15 +192,15 @@ function AthleteMarker({ athlete, coordsToWorld, viewerPosition }) {
 
   return (
     <group position={[worldPos.x, worldPos.y, worldPos.z]}>
-      {/* Vertical pole */}
-      <mesh position={[0, 0.03, 0]}>
-        <cylinderGeometry args={[0.002, 0.002, 0.06, 8]} />
+      {/* Vertical pole (increased size for visibility from above) */}
+      <mesh position={[0, 0.05, 0]}>
+        <cylinderGeometry args={[0.004, 0.004, 0.1, 8]} />
         <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.5} />
       </mesh>
 
-      {/* Athlete flag/marker (billboard) */}
-      <mesh ref={meshRef} position={[0, 0.07, 0]}>
-        <planeGeometry args={[0.08, 0.04]} />
+      {/* Athlete flag/marker (billboard, increased size) */}
+      <mesh ref={meshRef} position={[0, 0.11, 0]}>
+        <planeGeometry args={[0.12, 0.06]} />
         <meshStandardMaterial
           color={getColor()}
           side={THREE.DoubleSide}
@@ -250,25 +286,46 @@ function RouteLine({ coordsToWorld }) {
 }
 
 // Camera controller component
-function CameraController({ viewerPosition, coordsToWorld }) {
+function CameraController({ athletePositions, coordsToWorld }) {
   const { camera } = useThree()
   const [isPositioned, setIsPositioned] = useState(false)
 
   useEffect(() => {
-    if (!coordsToWorld || !viewerPosition || isPositioned) return
+    if (!coordsToWorld || !athletePositions || athletePositions.length === 0 || isPositioned) return
 
-    // Convert viewer position to WebGL coordinates
-    const pos = coordsToWorld(viewerPosition.lat, viewerPosition.lng)
+    // Calculate centroid of all athletes
+    const centroid = calculateAthleteCentroid(athletePositions)
+    if (!centroid) return
 
-    // Set camera at eye level (2m above ground)
-    const eyeLevel = 2 * 0.001 // 2 meters in kilometers
+    // Calculate spread to determine camera height
+    const spread = calculateAthleteSpread(athletePositions)
 
-    camera.position.set(pos.x, eyeLevel, pos.z)
-    camera.lookAt(pos.x, eyeLevel, pos.z - 0.1) // Look forward (north)
+    // Convert centroid to world coordinates
+    const centerPos = coordsToWorld(centroid.lat, centroid.lng)
+
+    // Calculate camera height based on spread and FOV
+    // Using a factor to ensure all athletes fit in view
+    // For FOV=60°, height = (spread / 2) / tan(30°) ≈ spread * 0.866
+    const baseHeight = Math.max(spread * 0.001 * 1.2, 2) // At least 2km high
+    const cameraHeight = baseHeight
+
+    // Set camera for nadir (top-down) view
+    camera.position.set(centerPos.x, cameraHeight, centerPos.z)
+
+    // Look straight down at the centroid
+    camera.lookAt(centerPos.x, 0, centerPos.z)
+
+    // Set up vector for proper orientation
+    camera.up.set(0, 1, 0)
 
     setIsPositioned(true)
-    console.log('Camera positioned at:', { x: pos.x, y: eyeLevel, z: pos.z })
-  }, [camera, viewerPosition, coordsToWorld, isPositioned])
+    console.log('Camera positioned for nadir view:', {
+      centroid,
+      spread: spread / 1000 + 'km',
+      height: cameraHeight + 'km',
+      position: { x: centerPos.x, y: cameraHeight, z: centerPos.z }
+    })
+  }, [camera, athletePositions, coordsToWorld, isPositioned])
 
   return null
 }
@@ -295,6 +352,11 @@ function ARScene({ athletePositions, viewerPosition }) {
     console.log('Terrain ready')
   }
 
+  // Use athlete centroid as map origin if athletes exist, otherwise use viewer position
+  const mapOrigin = athletePositions && athletePositions.length > 0
+    ? calculateAthleteCentroid(athletePositions)
+    : viewerPosition
+
   return (
     <>
       {/* Sky with realistic atmosphere */}
@@ -310,10 +372,10 @@ function ARScene({ athletePositions, viewerPosition }) {
       <directionalLight position={[10, 10, 5]} intensity={1.2} />
       <hemisphereLight intensity={0.6} groundColor="#553311" />
 
-      {/* Load terrain with Geo-Three */}
-      {viewerPosition && (
+      {/* Load terrain with Geo-Three centered on athletes */}
+      {mapOrigin && (
         <Terrain
-          origin={viewerPosition}
+          origin={mapOrigin}
           onReady={handleTerrainReady}
         />
       )}
@@ -334,23 +396,23 @@ function ARScene({ athletePositions, viewerPosition }) {
         />
       ))}
 
-      {/* Camera controls - OrbitControls for 360° rotation */}
+      {/* Camera controls - OrbitControls for nadir view */}
       <OrbitControls
         enablePan={true}
         enableZoom={true}
-        minDistance={0.01}
-        maxDistance={5}
+        minDistance={0.5}
+        maxDistance={20}
         minPolarAngle={0} // Allow looking straight up at sky
-        maxPolarAngle={Math.PI} // Allow looking straight down
+        maxPolarAngle={Math.PI * 0.75} // Limit to 135° (prevent going too horizontal)
         enableDamping={true}
         dampingFactor={0.05}
         rotateSpeed={0.5}
         zoomSpeed={0.8}
       />
 
-      {/* Position camera at viewer location */}
-      {terrainData?.coordsToWorld && viewerPosition && (
-        <CameraController viewerPosition={viewerPosition} coordsToWorld={terrainData.coordsToWorld} />
+      {/* Position camera for nadir view above athletes */}
+      {terrainData?.coordsToWorld && athletePositions && athletePositions.length > 0 && (
+        <CameraController athletePositions={athletePositions} coordsToWorld={terrainData.coordsToWorld} />
       )}
     </>
   )
@@ -412,9 +474,9 @@ export default function ARView({ isOpen, onClose, athletePositions = [], current
       <Canvas
         camera={{
           fov: 60,
-          near: 0.001,
-          far: 100,
-          position: [0, 0.1, 0]
+          near: 0.01,
+          far: 50,
+          position: [0, 5, 0]
         }}
         style={{ background: '#87CEEB' }}
         gl={{
