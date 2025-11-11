@@ -14,7 +14,7 @@ Key Features:
 *   **Live Comments**: Live comments are also supported, allowing for a Twitch-like experience as viewers can cheer on their favourate athletes
 *   **Weather simulation**: Simulation includes weather effects for added immersion 
 *   **Easy setup**: Setting up only requires us to know the athlestes current position  
-  <img width="478" height="688" alt="image" src="https://github.com/user-attachments/assets/32006d2c-813c-461e-9f45-9ebff086e01d" />
+  <img width="318" height="458" alt="image" src="https://github.com/user-attachments/assets/32006d2c-813c-461e-9f45-9ebff086e01d" />
 
 
 ---
