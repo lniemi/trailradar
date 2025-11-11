@@ -1,4 +1,4 @@
-# Sport Radar
+# Trail Radar
 
 Application for spectating ultra-trail events in real-time. The app displays the location of participants on a map. Spectators can follow specific participants and receive information about their progress. Spectators can also view the event along the route physically and with the help of augmented reality (AR) technology they can orientate themselves and find participants nearby.
 
@@ -26,7 +26,7 @@ Key Features:
 - Validation: We can validate the solution by implementing it and demonstrating the cost savings and increased fan engagement.
 - Our X-Factor: Our design is a key differentiator and ability to focus on specific racers
 
----
+ 
 
 ### Business Model
 
