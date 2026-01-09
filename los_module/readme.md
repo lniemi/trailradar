@@ -16,9 +16,24 @@ The way how the environment and required libraries will be set up is at first at
 
 The research will try to use the same data sources as the main application and study area(s) from the region that currently (january 9th 2026) is used in the main application.
 
-### MapBox terrain-rgb Data Sources
+### Phase 1: Raw DEM Files (Copernicus DEM)
 
-The main application's ARView uses MapBox's terrain-rgb tileset for 3D terrain elevation. This tileset derives elevation data from:
+The research will start with raw DEM files, specifically Copernicus DEM data. This approach is more straightforward for LOS calculations because:
+
+- Direct access to elevation values without decoding tile formats
+- Well-documented GeoTIFF format with standard tooling (rasterio, GDAL)
+- No API rate limits or authentication complexity during development
+- Easier to debug and validate results
+
+Copernicus DEM is available in multiple resolutions:
+- **GLO-30**: 30m resolution, freely available globally
+- **GLO-90**: 90m resolution, freely available globally
+
+For the TOR330 route area (Italian/French Alps, Aosta Valley), we'll download the relevant GLO-30 tiles covering the study area.
+
+### Phase 2: MapBox terrain-rgb Tiles (Future)
+
+Once LOS calculations are working with raw DEM files, we can explore using MapBox's terrain-rgb tileset to align with the main application's ARView. This tileset derives elevation data from:
 
 1. **SRTM (Shuttle Radar Topography Mission)** - NASA's radar topography data covering latitudes 60°N to 56°S at ~30m resolution
 
@@ -44,8 +59,6 @@ For the TOR330 route in the Italian/French Alps (Aosta Valley area), the terrain
 - **EU-DEM** (European Digital Elevation Model) at 25m resolution
 - **SRTM** at 30m resolution
 - Possibly **SwissALTI3D** or similar national datasets for Swiss portions
-
-
 
 
 ## Integration
