@@ -1,0 +1,28 @@
+{
+  "name": "@sportradar/auth",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./hooks": "./src/hooks/index.ts",
+    "./provider": "./src/providers/AuthProvider.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist node_modules"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.47.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@sportradar/typescript-config": "workspace:*",
+    "@types/react": "^19.1.16",
+    "typescript": "^5.7.0"
+  }
+}

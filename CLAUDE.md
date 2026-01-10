@@ -6,40 +6,109 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Sport Radar is an ultra-trail event spectator application that displays participant locations on a map in real-time. The app allows spectators to follow specific participants, track their progress, and use AR technology to locate nearby participants when viewing events physically along the route.
 
+## Monorepo Structure
+
+This is a **pnpm monorepo** with Turborepo for build orchestration:
+
+```
+sportradar/
+├── apps/
+│   ├── spectator/          # Main spectator app (React + Vite + TypeScript)
+│   └── website/            # Company website (React + Vite + TypeScript)
+├── packages/
+│   ├── auth/               # Supabase authentication (@sportradar/auth)
+│   ├── ui/                 # Shared UI components (@sportradar/ui)
+│   ├── utils/              # Shared utilities (@sportradar/utils)
+│   ├── config/             # Shared ESLint/Tailwind configs (@sportradar/config)
+│   └── typescript-config/  # Shared TypeScript configs (@sportradar/typescript-config)
+├── supabase/               # Supabase configuration
+├── data/                   # Shared data files (GPX, etc.)
+├── los_module/             # Python research module (separate)
+├── pnpm-workspace.yaml
+├── turbo.json
+└── package.json
+```
+
 ## Tech Stack
 
-- **Frontend**: React 19 with Vite
+- **Frontend**: React 19 with Vite, TypeScript
 - **Styling**: Tailwind CSS v4
 - **Mapping**: Mapbox GL JS
+- **3D**: Three.js, @react-three/fiber, geo-three
 - **Routing**: React Router v7
-- **Backend** (planned): Supabase (config present but not yet integrated)
+- **Backend**: Supabase (local for dev, hosted for production)
+- **Build**: pnpm workspaces + Turborepo
+- **Deployment**: Vercel
 
 ## Development Commands
 
 ```bash
-npm run dev      # Start development server with hot reload
-npm run build    # Production build
-npm run preview  # Preview production build
-npm run lint     # Run ESLint
+# Install dependencies
+pnpm install
+
+# Development
+pnpm dev                  # Run all apps in dev mode
+pnpm dev:spectator        # Run spectator app only (port 5173)
+pnpm dev:website          # Run website only (port 5174)
+
+# Build
+pnpm build                # Build all apps
+pnpm build:spectator      # Build spectator app only
+pnpm build:website        # Build website only
+
+# Other
+pnpm lint                 # Lint all packages
+pnpm typecheck            # TypeScript type checking
+pnpm clean                # Clean all build artifacts
+
+# Supabase
+pnpm supabase:start       # Start local Supabase
+pnpm supabase:stop        # Stop local Supabase
+pnpm supabase:reset       # Reset local database
 ```
 
 ## Environment Configuration
 
-The application requires a Mapbox access token. Copy [.env.example](.env.example) to `.env` and add your Mapbox token:
+Copy `.env.example` to `.env` in the root and/or app folders:
 
-```
-VITE_MAPBOX_ACCESS_TOKEN=your_token_here
+```env
+# Supabase (from `supabase start` output)
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_ANON_KEY=your-local-anon-key
+
+# Mapbox
+VITE_MAPBOX_ACCESS_TOKEN=your-mapbox-token
 ```
 
-## Application Architecture
+## Shared Packages
+
+### @sportradar/utils
+Geo utilities for distance calculations:
+```typescript
+import { haversineDistance, calculateTotalDistance, getPositionAtDistance } from '@sportradar/utils/geo'
+```
+
+### @sportradar/auth
+Supabase authentication:
+```typescript
+import { AuthProvider, useAuth, getSupabaseClient } from '@sportradar/auth'
+```
+
+### @sportradar/ui
+Shared UI components:
+```typescript
+import { Button, Card } from '@sportradar/ui'
+```
+
+## Spectator App Architecture
 
 ### Route Structure
 
-- **Entry point**: [src/main.jsx](src/main.jsx) - Sets up React, Router, and Mapbox CSS
-- **Router**: [src/App.jsx](src/App.jsx) - Defines application routes
+- **Entry point**: [apps/spectator/src/main.tsx](apps/spectator/src/main.tsx) - Sets up React, Router, and Mapbox CSS
+- **Router**: [apps/spectator/src/App.tsx](apps/spectator/src/App.tsx) - Defines application routes
 - **Pages**:
-  - [src/pages/Home.jsx](src/pages/Home.jsx) - Main map view with race UI components (timer, leaderboard, athlete info)
-  - [src/pages/SimulationManager.jsx](src/pages/SimulationManager.jsx) - Control panel for athlete simulation (separate window)
+  - [apps/spectator/src/pages/Home.tsx](apps/spectator/src/pages/Home.tsx) - Main map view with race UI components (timer, leaderboard, athlete info)
+  - [apps/spectator/src/pages/SimulationManager.tsx](apps/spectator/src/pages/SimulationManager.tsx) - Control panel for athlete simulation (separate window)
 
 ### Cross-Window Communication Pattern
 
@@ -61,9 +130,9 @@ This pattern enables real-time synchronization between windows without a backend
 
 ### Map Component
 
-[src/components/Map.jsx](src/components/Map.jsx) is the core component that:
+[apps/spectator/src/components/Map.tsx](apps/spectator/src/components/Map.tsx) is the core component that:
 - Initializes Mapbox GL with globe projection and terrain (DEM exaggeration: 1.5)
-- Loads the TOR330 route from [public/TOR330.geojson](public/TOR330.geojson)
+- Loads the TOR330 route from [apps/spectator/public/TOR330.geojson](apps/spectator/public/TOR330.geojson)
 - Renders the route as a yellow line layer
 - Auto-fits the map bounds to the route extent
 - **Single-athlete mode methods** (via ref):
@@ -83,7 +152,7 @@ The simulation system allows virtual athletes to traverse routes for testing and
 
 #### Single-Athlete Simulation
 
-**Core module**: [src/simulations/athleteSimulation.js](src/simulations/athleteSimulation.js)
+**Core module**: [apps/spectator/src/simulations/athleteSimulation.ts](apps/spectator/src/simulations/athleteSimulation.ts)
 - `AthleteSimulation` class manages simulated athlete movement along the route
 - Loads route coordinates from GeoJSON and calculates total distance
 - Supports initial positioning (athletes can start at any distance along route)
@@ -92,7 +161,7 @@ The simulation system allows virtual athletes to traverse routes for testing and
 
 #### Multi-Athlete Simulation
 
-**Core module**: [src/simulations/multiAthleteSimulation.js](src/simulations/multiAthleteSimulation.js)
+**Core module**: [apps/spectator/src/simulations/multiAthleteSimulation.ts](apps/spectator/src/simulations/multiAthleteSimulation.ts)
 - `MultiAthleteSimulation` class manages multiple concurrent `AthleteSimulation` instances
 - Each athlete runs independently with their own simulation instance
 - **Global controls**: `start()`, `pause()`, `resume()`, `stop()`, `reset()`, `setGlobalSpeed(speed)`
@@ -104,7 +173,7 @@ The simulation system allows virtual athletes to traverse routes for testing and
 
 #### Shared Utilities
 
-**Module**: [src/simulations/utils.js](src/simulations/utils.js)
+**Module**: [packages/utils/src/geo/](packages/utils/src/geo/) (shared package)
 - `haversineDistance()` - Calculates distance between two geographic points
 - `calculateTotalDistance()` - Sums distances along an entire route
 - `getPositionAtDistance()` - Interpolates position at a specific distance along the route
@@ -122,18 +191,18 @@ The simulation system allows virtual athletes to traverse routes for testing and
 
 All spectator UI components use fixed positioning to overlay the map with semi-transparent backgrounds and backdrop blur:
 
-**RaceTimer**: [src/components/RaceTimer.jsx](src/components/RaceTimer.jsx)
+**RaceTimer**: [apps/spectator/src/components/RaceTimer.tsx](apps/spectator/src/components/RaceTimer.tsx)
 - Live race timer with pulsing "LIVE" indicator
 - Displays elapsed time in HH:MM:SS or MM:SS format
 - Fixed position top-left, below navbar
 
-**Leaderboard**: [src/components/Leaderboard.jsx](src/components/Leaderboard.jsx)
+**Leaderboard**: [apps/spectator/src/components/Leaderboard.tsx](apps/spectator/src/components/Leaderboard.tsx)
 - Toggle button with star icon (fixed position below race timer)
 - Expandable side panel that slides in from the left
 - Shows ranked list of athletes sorted by distance covered
 - Top 3 positions have medal-colored position badges
 
-**AthleteInfoSheet**: [src/components/AthleteInfoSheet.jsx](src/components/AthleteInfoSheet.jsx)
+**AthleteInfoSheet**: [apps/spectator/src/components/AthleteInfoSheet.tsx](apps/spectator/src/components/AthleteInfoSheet.tsx)
 - Search bar positioned at bottom center of screen
 - Search functionality by athlete name or bib number
 - Selected athlete info panel displays athlete details (age, club, nationality, photo)
@@ -141,7 +210,7 @@ All spectator UI components use fixed positioning to overlay the map with semi-t
 - Auto-selects simulated athlete when simulation starts
 - Notifies parent component of selection and expansion state changes
 
-**ARButton**: [src/components/ARButton.jsx](src/components/ARButton.jsx)
+**ARButton**: [apps/spectator/src/components/ARButton.tsx](apps/spectator/src/components/ARButton.tsx)
 - Fixed position button for AR view toggle
 - Dynamically shifts position based on athlete info sheet state
 - Eye icon design for AR functionality
@@ -198,7 +267,7 @@ AthleteInfoSheet notifies the parent via callbacks:
 
 ### Simulation Manager UI
 
-[src/pages/SimulationManager.jsx](src/pages/SimulationManager.jsx) provides a control panel for managing both single and multiple athlete simulations:
+[apps/spectator/src/pages/SimulationManager.tsx](apps/spectator/src/pages/SimulationManager.tsx) provides a control panel for managing both single and multiple athlete simulations:
 
 #### Single-Athlete Mode
 - Dropdown to select individual athlete
@@ -242,11 +311,11 @@ AthleteInfoSheet notifies the parent via callbacks:
 
 ### Data Files
 
-Route data is stored in [public/](public/):
+Route data is stored in [apps/spectator/public/](apps/spectator/public/):
 - `TOR330.geojson` - Full race route (converted from GPX)
 - `TOR330_waypoints.geojson` - Key waypoints along the route
 
-Mock athlete data is defined in [src/simulations/mockAthletes.js](src/simulations/mockAthletes.js):
+Mock athlete data is defined in [apps/spectator/src/simulations/mockAthletes.ts](apps/spectator/src/simulations/mockAthletes.ts):
 - 10 athletes with unique IDs, names, bib numbers
 - Each has `baseSpeed`, `initialDistance`, age, nationality, club
 - Includes previous race experiences and sponsors
@@ -256,7 +325,7 @@ The root directory contains source files including `TOR330-CERT-2025.gpx` (origi
 
 ### 3D Terrain View (ARView)
 
-[src/components/ARView.jsx](src/components/ARView.jsx) provides a 3D terrain visualization using geo-three library:
+[apps/spectator/src/components/ARView.tsx](apps/spectator/src/components/ARView.tsx) provides a 3D terrain visualization using geo-three library:
 
 **Geo-Three Integration:**
 - Uses `geo-three` library for 3D terrain rendering with Mapbox data

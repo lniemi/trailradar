@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "apps/spectator" },
+    { "path": "apps/website" },
+    { "path": "packages/auth" },
+    { "path": "packages/ui" },
+    { "path": "packages/utils" }
+  ]
+}

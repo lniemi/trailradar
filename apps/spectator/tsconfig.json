@@ -1,0 +1,15 @@
+{
+  "extends": "@sportradar/typescript-config/react.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/auth" },
+    { "path": "../../packages/ui" },
+    { "path": "../../packages/utils" }
+  ]
+}
