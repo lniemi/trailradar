@@ -8,6 +8,9 @@ export default defineConfig({
   server: {
     host: '127.0.0.1',
     port: 5173,
+    hmr: {
+      overlay: true,
+    },
   },
   resolve: {
     alias: {
@@ -15,6 +18,20 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['@sportradar/ui', '@sportradar/auth', '@sportradar/utils'],
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      'three',
+      '@react-three/fiber',
+      '@react-three/drei',
+      // Include drei's nested dependencies to prevent optimization issues
+      '@react-three/drei > three-stdlib',
+      '@react-three/drei > @monogrid/gainmap-js',
+      '@react-three/drei > troika-three-text',
+      'mapbox-gl',
+      'geo-three',
+    ],
+    exclude: ['@sportradar/ui', '@sportradar/auth', '@sportradar/utils'],
   },
 })
