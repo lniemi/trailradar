@@ -376,6 +376,47 @@ The root directory contains source files including `TOR330-CERT-2025.gpx` (origi
 - LOD updates automatically via `onBeforeRender` callback
 - Limit tube geometry segments: `Math.min(points.length * 2, 1000)` to prevent excessive geometry
 
+## Vite Dependency Optimization
+
+The spectator app uses a specific `optimizeDeps` configuration in [apps/spectator/vite.config.ts](apps/spectator/vite.config.ts) to prevent "504 Outdated Optimize Dep" errors:
+
+**Why this matters:**
+- `@react-three/drei` has many lazy-loaded nested dependencies (three-stdlib, troika-three-text, etc.)
+- Without explicit inclusion, Vite discovers these mid-session and triggers re-optimization
+- This creates hash mismatches between the browser cache and server, causing 504 errors
+
+**Configuration pattern:**
+```typescript
+optimizeDeps: {
+  include: [
+    'react',
+    'react-dom',
+    'react-router-dom',
+    'three',
+    '@react-three/fiber',
+    '@react-three/drei',
+    // Include drei's nested dependencies to prevent optimization issues
+    '@react-three/drei > three-stdlib',
+    '@react-three/drei > @monogrid/gainmap-js',
+    '@react-three/drei > troika-three-text',
+    'mapbox-gl',
+    'geo-three',
+  ],
+  exclude: ['@sportradar/ui', '@sportradar/auth', '@sportradar/utils'],
+}
+```
+
+**Key points:**
+- Use `>` syntax to include nested dependencies (e.g., `@react-three/drei > three-stdlib`)
+- Exclude monorepo packages (`@sportradar/*`) - they're symlinked and shouldn't be bundled
+- Include core React packages for consistent module resolution
+
+**If you encounter "Outdated Optimize Dep" errors:**
+1. Stop the dev server
+2. Delete the `.vite` cache: `rmdir /s /q apps/spectator/node_modules/.vite`
+3. Clear browser cache or use incognito
+4. Restart with `pnpm dev:spectator`
+
 ## Code Patterns
 
 - All components use functional React with hooks
