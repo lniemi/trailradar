@@ -1,4 +1,4 @@
-<img src="apps/docs/static/img/logo.svg" alt="TrailRadar Logo" width="25" height="25" align="left" style="margin-right: 10px;">
+<img src="apps/docs/static/img/logo.svg" alt="TrailRadar Logo" width="75" height="75" align="left" style="margin-right: 10px;">
 
 # TrailRadar
 
