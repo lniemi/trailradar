@@ -1,6 +1,4 @@
-(small note: the los_module is developed after the hackathon for fun, and should not be considered part of the hackathon submission)
-
-# Trail Radar
+# TrailRadar
 
 Application for spectating ultra-trail events in real-time. The app displays the location of participants on a map. Spectators can follow specific participants and receive information about their progress. Spectators can also view the event along the route physically and with the help of augmented reality (AR) technology they can orientate themselves and find participants nearby.
 
@@ -41,4 +39,95 @@ Our users will be:
 *   Fans of sports that aren't widely covered.
 *   Fans of obscure or difficult-to-visualize sports.
 
+---
 
+## Installation
+
+### Prerequisites
+
+- **Node.js** >= 20.0.0
+- **pnpm** >= 10.0.0 - Install according to the [pnpm documentation](https://pnpm.io/installation). Recommended: `npm install -g pnpm@latest-10`
+- **Git**
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/lniemi/trailradar.git
+cd trailradar
+```
+
+### Install Dependencies
+
+```bash
+pnpm install
+```
+
+This will install all dependencies for all apps and packages in the monorepo.
+
+### Environment Configuration
+
+Copy the example environment file:
+
+```bash
+cp .env.example .env
+```
+
+Configure the following environment variables:
+
+```env
+# Supabase (from `supabase start` output)
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_ANON_KEY=your-local-anon-key
+
+# Mapbox
+VITE_MAPBOX_ACCESS_TOKEN=your-mapbox-token
+```
+
+#### Getting API Keys
+
+**Mapbox Access Token:**
+1. Create an account at [mapbox.com](https://www.mapbox.com/)
+2. Navigate to your account's [Access Tokens page](https://account.mapbox.com/access-tokens/)
+3. Create a new token or use the default public token
+
+**Supabase Keys:**
+When running Supabase locally, the keys are provided in the output of `supabase start`.
+
+### Verify Installation
+
+Run the development server to verify everything is working:
+
+```bash
+pnpm dev:spectator
+```
+
+The app should be available at [http://localhost:5173](http://localhost:5173).
+
+## Development Commands
+
+```bash
+# Install dependencies
+pnpm install
+
+# Development
+pnpm dev                  # Run all apps in dev mode
+pnpm dev:spectator        # Run spectator app only (port 5173)
+pnpm dev:website          # Run website only (port 5174)
+pnpm dev:docs             # Run documentation only (port 3000)
+
+# Build
+pnpm build                # Build all apps
+pnpm build:spectator      # Build spectator app only
+pnpm build:website        # Build website only
+pnpm build:docs           # Build documentation only
+
+# Other
+pnpm lint                 # Lint all packages
+pnpm typecheck            # TypeScript type checking
+pnpm clean                # Clean all build artifacts
+
+# Supabase
+pnpm supabase:start       # Start local Supabase
+pnpm supabase:stop        # Stop local Supabase
+pnpm supabase:reset       # Reset local database
+```
