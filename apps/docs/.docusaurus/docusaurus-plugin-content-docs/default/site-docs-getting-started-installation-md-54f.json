@@ -1,0 +1,23 @@
+{
+  "id": "getting-started/installation",
+  "title": "Installation",
+  "description": "This guide will help you set up the SportRadar development environment.",
+  "source": "@site/docs/getting-started/installation.md",
+  "sourceDirName": "getting-started",
+  "slug": "/getting-started/installation",
+  "permalink": "/docs/getting-started/installation",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Introduction",
+    "permalink": "/docs/intro"
+  },
+  "next": {
+    "title": "Development",
+    "permalink": "/docs/getting-started/development"
+  }
+}

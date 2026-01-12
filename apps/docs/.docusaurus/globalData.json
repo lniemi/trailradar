@@ -1,0 +1,103 @@
+{
+  "docusaurus-plugin-content-docs": {
+    "default": {
+      "path": "/docs",
+      "versions": [
+        {
+          "name": "current",
+          "label": "Next",
+          "isLast": true,
+          "path": "/docs",
+          "mainDocId": "intro",
+          "docs": [
+            {
+              "id": "apps/spectator",
+              "path": "/docs/apps/spectator",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "apps/website",
+              "path": "/docs/apps/website",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "architecture/monorepo-structure",
+              "path": "/docs/architecture/monorepo-structure",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "architecture/overview",
+              "path": "/docs/architecture/overview",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "architecture/tech-stack",
+              "path": "/docs/architecture/tech-stack",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "features/ar-view",
+              "path": "/docs/features/ar-view",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "features/map-component",
+              "path": "/docs/features/map-component",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "features/simulation-system",
+              "path": "/docs/features/simulation-system",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "getting-started/development",
+              "path": "/docs/getting-started/development",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "getting-started/installation",
+              "path": "/docs/getting-started/installation",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "intro",
+              "path": "/docs/intro",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "packages/auth",
+              "path": "/docs/packages/auth",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "packages/config",
+              "path": "/docs/packages/config",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "packages/ui",
+              "path": "/docs/packages/ui",
+              "sidebar": "tutorialSidebar"
+            },
+            {
+              "id": "packages/utils",
+              "path": "/docs/packages/utils",
+              "sidebar": "tutorialSidebar"
+            }
+          ],
+          "draftIds": [],
+          "sidebars": {
+            "tutorialSidebar": {
+              "link": {
+                "path": "/docs/intro",
+                "label": "intro"
+              }
+            }
+          }
+        }
+      ],
+      "breadcrumbs": true
+    }
+  }
+}

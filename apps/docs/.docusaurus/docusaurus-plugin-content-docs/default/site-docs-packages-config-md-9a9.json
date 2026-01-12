@@ -1,0 +1,23 @@
+{
+  "id": "packages/config",
+  "title": "@sportradar/config",
+  "description": "Shared configuration files for SportRadar applications.",
+  "source": "@site/docs/packages/config.md",
+  "sourceDirName": "packages",
+  "slug": "/packages/config",
+  "permalink": "/docs/packages/config",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "@sportradar/utils",
+    "permalink": "/docs/packages/utils"
+  },
+  "next": {
+    "title": "Map Component",
+    "permalink": "/docs/features/map-component"
+  }
+}

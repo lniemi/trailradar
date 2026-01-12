@@ -1,0 +1,19 @@
+{
+  "id": "intro",
+  "title": "Introduction",
+  "description": "Welcome to SportRadar - an ultra-trail event spectator application that displays participant locations on a map in real-time.",
+  "source": "@site/docs/intro.md",
+  "sourceDirName": ".",
+  "slug": "/intro",
+  "permalink": "/docs/intro",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "next": {
+    "title": "Installation",
+    "permalink": "/docs/getting-started/installation"
+  }
+}

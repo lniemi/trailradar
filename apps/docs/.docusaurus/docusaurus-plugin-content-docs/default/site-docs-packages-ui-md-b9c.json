@@ -1,0 +1,23 @@
+{
+  "id": "packages/ui",
+  "title": "@sportradar/ui",
+  "description": "Shared UI components for SportRadar applications.",
+  "source": "@site/docs/packages/ui.md",
+  "sourceDirName": "packages",
+  "slug": "/packages/ui",
+  "permalink": "/docs/packages/ui",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "@sportradar/auth",
+    "permalink": "/docs/packages/auth"
+  },
+  "next": {
+    "title": "@sportradar/utils",
+    "permalink": "/docs/packages/utils"
+  }
+}

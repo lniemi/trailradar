@@ -1,0 +1,125 @@
+{
+  "/__docusaurus/debug-5ff": {
+    "__comp": "__comp---theme-debug-config-23-a-2ff",
+    "__context": {
+      "plugin": "plugin---docusaurus-debugb-38-ad3"
+    }
+  },
+  "/__docusaurus/debug/config-5ba": {
+    "__comp": "__comp---theme-debug-config-23-a-2ff",
+    "__context": {
+      "plugin": "plugin---docusaurus-debugb-38-ad3"
+    }
+  },
+  "/__docusaurus/debug/content-a2b": {
+    "__comp": "__comp---theme-debug-contentba-8-ce7",
+    "__context": {
+      "plugin": "plugin---docusaurus-debugb-38-ad3"
+    },
+    "__props": "__props---docusaurus-debug-content-3-c-0-be2"
+  },
+  "/__docusaurus/debug/globalData-c3c": {
+    "__comp": "__comp---theme-debug-global-dataede-0fa",
+    "__context": {
+      "plugin": "plugin---docusaurus-debugb-38-ad3"
+    }
+  },
+  "/__docusaurus/debug/metadata-156": {
+    "__comp": "__comp---theme-debug-site-metadata-68-e-3d4",
+    "__context": {
+      "plugin": "plugin---docusaurus-debugb-38-ad3"
+    }
+  },
+  "/__docusaurus/debug/registry-88c": {
+    "__comp": "__comp---theme-debug-registry-679-501",
+    "__context": {
+      "plugin": "plugin---docusaurus-debugb-38-ad3"
+    }
+  },
+  "/__docusaurus/debug/routes-000": {
+    "__comp": "__comp---theme-debug-routes-946-699",
+    "__context": {
+      "plugin": "plugin---docusaurus-debugb-38-ad3"
+    }
+  },
+  "/docs-539": {
+    "__comp": "__comp---theme-docs-root-5-e-9-0b6",
+    "__context": {
+      "plugin": "plugin---docsaba-d7c"
+    }
+  },
+  "/docs-913": {
+    "__comp": "__comp---theme-doc-version-roota-7-b-5de",
+    "__props": "__props---docs-005-788"
+  },
+  "/docs-8a1": {
+    "__comp": "__comp---theme-doc-roota-94-67a"
+  },
+  "/docs/apps/spectator-c63": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-apps-spectatored-9-815"
+  },
+  "/docs/apps/website-e6e": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-apps-website-1-ef-e5e"
+  },
+  "/docs/architecture/monorepo-structure-17c": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-architecture-monorepo-structure-507-397"
+  },
+  "/docs/architecture/overview-833": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-architecture-overview-0-b-1-a4c"
+  },
+  "/docs/architecture/tech-stack-34b": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-architecture-tech-stack-97-a-a6a"
+  },
+  "/docs/features/ar-view-d66": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-features-ar-viewe-17-c18"
+  },
+  "/docs/features/map-component-06b": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-features-map-componente-2-c-9ed"
+  },
+  "/docs/features/simulation-system-42c": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-features-simulation-system-61-e-229"
+  },
+  "/docs/getting-started/development-64e": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-getting-started-development-0-aa-4f6"
+  },
+  "/docs/getting-started/installation-267": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-getting-started-installation-54-f-18d"
+  },
+  "/docs/intro-61d": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-intro-0-e-3-be1"
+  },
+  "/docs/packages/auth-d77": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-packages-auth-66-b-46b"
+  },
+  "/docs/packages/config-7b1": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-packages-config-9-a-9-a5e"
+  },
+  "/docs/packages/ui-85d": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-packages-uib-9-c-14e"
+  },
+  "/docs/packages/utils-6ae": {
+    "__comp": "__comp---theme-doc-item-178-a40",
+    "content": "content---docs-packages-utils-485-50c"
+  },
+  "/-e5f": {
+    "__comp": "__comp---site-src-pages-index-tsx-1-df-d3e",
+    "__context": {
+      "plugin": "plugin---a-74-9d6"
+    },
+    "config": "config---5-e-9-4f3"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "features/map-component",
+  "title": "Map Component",
+  "description": "The Map component is the core visualization element of the Spectator app.",
+  "source": "@site/docs/features/map-component.md",
+  "sourceDirName": "features",
+  "slug": "/features/map-component",
+  "permalink": "/docs/features/map-component",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "@sportradar/config",
+    "permalink": "/docs/packages/config"
+  },
+  "next": {
+    "title": "Simulation System",
+    "permalink": "/docs/features/simulation-system"
+  }
+}

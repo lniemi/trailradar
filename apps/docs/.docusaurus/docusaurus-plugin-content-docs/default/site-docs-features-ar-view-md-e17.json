@@ -1,0 +1,19 @@
+{
+  "id": "features/ar-view",
+  "title": "AR View (3D Terrain)",
+  "description": "The ARView component provides 3D terrain visualization using geo-three and Three.js.",
+  "source": "@site/docs/features/ar-view.md",
+  "sourceDirName": "features",
+  "slug": "/features/ar-view",
+  "permalink": "/docs/features/ar-view",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Simulation System",
+    "permalink": "/docs/features/simulation-system"
+  }
+}

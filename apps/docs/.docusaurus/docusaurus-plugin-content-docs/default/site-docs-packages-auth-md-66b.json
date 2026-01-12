@@ -1,0 +1,23 @@
+{
+  "id": "packages/auth",
+  "title": "@sportradar/auth",
+  "description": "Supabase authentication package for SportRadar applications.",
+  "source": "@site/docs/packages/auth.md",
+  "sourceDirName": "packages",
+  "slug": "/packages/auth",
+  "permalink": "/docs/packages/auth",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Website",
+    "permalink": "/docs/apps/website"
+  },
+  "next": {
+    "title": "@sportradar/ui",
+    "permalink": "/docs/packages/ui"
+  }
+}

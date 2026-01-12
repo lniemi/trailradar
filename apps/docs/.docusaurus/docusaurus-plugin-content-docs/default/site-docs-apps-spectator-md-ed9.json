@@ -1,0 +1,23 @@
+{
+  "id": "apps/spectator",
+  "title": "Spectator App",
+  "description": "The main SportRadar application for spectators to track race participants.",
+  "source": "@site/docs/apps/spectator.md",
+  "sourceDirName": "apps",
+  "slug": "/apps/spectator",
+  "permalink": "/docs/apps/spectator",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Tech Stack",
+    "permalink": "/docs/architecture/tech-stack"
+  },
+  "next": {
+    "title": "Website",
+    "permalink": "/docs/apps/website"
+  }
+}

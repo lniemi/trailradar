@@ -1,0 +1,23 @@
+{
+  "id": "packages/utils",
+  "title": "@sportradar/utils",
+  "description": "Shared utilities for SportRadar applications, primarily geographic calculations.",
+  "source": "@site/docs/packages/utils.md",
+  "sourceDirName": "packages",
+  "slug": "/packages/utils",
+  "permalink": "/docs/packages/utils",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "@sportradar/ui",
+    "permalink": "/docs/packages/ui"
+  },
+  "next": {
+    "title": "@sportradar/config",
+    "permalink": "/docs/packages/config"
+  }
+}

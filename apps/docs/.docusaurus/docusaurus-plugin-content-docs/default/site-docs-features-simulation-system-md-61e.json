@@ -1,0 +1,23 @@
+{
+  "id": "features/simulation-system",
+  "title": "Simulation System",
+  "description": "The simulation system allows virtual athletes to traverse routes for testing and development.",
+  "source": "@site/docs/features/simulation-system.md",
+  "sourceDirName": "features",
+  "slug": "/features/simulation-system",
+  "permalink": "/docs/features/simulation-system",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Map Component",
+    "permalink": "/docs/features/map-component"
+  },
+  "next": {
+    "title": "AR View (3D Terrain)",
+    "permalink": "/docs/features/ar-view"
+  }
+}

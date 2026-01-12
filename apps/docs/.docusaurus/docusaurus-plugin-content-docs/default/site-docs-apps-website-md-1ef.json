@@ -1,0 +1,23 @@
+{
+  "id": "apps/website",
+  "title": "Website",
+  "description": "The SportRadar company website.",
+  "source": "@site/docs/apps/website.md",
+  "sourceDirName": "apps",
+  "slug": "/apps/website",
+  "permalink": "/docs/apps/website",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Spectator App",
+    "permalink": "/docs/apps/spectator"
+  },
+  "next": {
+    "title": "@sportradar/auth",
+    "permalink": "/docs/packages/auth"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "architecture/tech-stack",
+  "title": "Tech Stack",
+  "description": "A comprehensive overview of the technologies used in SportRadar.",
+  "source": "@site/docs/architecture/tech-stack.md",
+  "sourceDirName": "architecture",
+  "slug": "/architecture/tech-stack",
+  "permalink": "/docs/architecture/tech-stack",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Monorepo Structure",
+    "permalink": "/docs/architecture/monorepo-structure"
+  },
+  "next": {
+    "title": "Spectator App",
+    "permalink": "/docs/apps/spectator"
+  }
+}
