@@ -6,7 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    host: '127.0.0.1',
+    host: '0.0.0.0', // allow access from network - useful for testing on mobile devices, but most likely to be used differently in production
     port: 5173,
     hmr: {
       overlay: true,
