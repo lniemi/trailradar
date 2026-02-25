@@ -36,3 +36,7 @@ packages/**/dist
 .env
 todo.md
 docs/~$TrailRadar_Technical_Architecture.pptx
+
+# Line-of-sight module virtual environment
+los_module/.venv/
+los_module/.vscode/settings.json
