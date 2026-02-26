@@ -68,6 +68,7 @@ los_module/
 ├── TOR330-CERT-2025.gpx           # Original GPX route file
 │
 ├── DEM.tif                        # Copernicus GLO-30 DEM (EPSG:25832, float32)
+├── DEM_4326.tif                   # DEM reprojected to EPSG:4326 (used for 3D terrain)
 ├── DEM.tif.aux.xml                # GeoTIFF auxiliary metadata
 │
 ├── viewshed_result.tif            # Raw WhiteboxTools viewshed output (EPSG:25832)
@@ -114,10 +115,9 @@ height = -10000 + ((R * 256 * 256 + G * 256 + B) * 0.1)
 
 MapLibre GL JS can render 3D terrain via its `terrain` style property, but it requires a **`raster-dem` tile source** — an HTTP endpoint serving 256x256 PNG tiles where elevation is encoded into RGB pixel values. It cannot consume a raw GeoTIFF file directly.
 
-Our `DEM.tif` is a Copernicus GLO-30 GeoTIFF with:
-- Raw float32 elevation values (metres above sea level)
-- CRS: EPSG:25832 (UTM Zone 32N)
-- Dimensions: 3564 x 1265 pixels (~22m x 30m cell size)
+Our DEM files are Copernicus GLO-30 GeoTIFFs:
+- `DEM.tif` — Original, CRS: EPSG:25832 (UTM Zone 32N), 3564 x 1265 pixels. Used for viewshed analysis.
+- `DEM_4326.tif` — Reprojected to EPSG:4326 (WGS84). **Used for 3D terrain rendering** because the reprojection eliminates stripe artifacts visible in the UTM version.
 
 ### Terrain-RGB Encoding
 
@@ -148,7 +148,7 @@ elevation = (R * 256 + G + B / 256) - 32768
 Rather than pre-generating a static tile pyramid or installing a heavy tile server (TiTiler), we run a lightweight HTTP tile server directly in the marimo notebook using libraries already in the venv:
 
 **Stack:**
-- `rio-tiler` — Reads tiles from the GeoTIFF, handles CRS reprojection (EPSG:25832 → EPSG:3857 Web Mercator) automatically per-tile request
+- `rio-tiler` — Reads tiles from the GeoTIFF, handles CRS reprojection (EPSG:4326 → EPSG:3857 Web Mercator) automatically per-tile request
 - `starlette` — Minimal ASGI web framework (already installed as a dependency of uvicorn)
 - `uvicorn` — ASGI server, runs in a daemon thread so it doesn't block the notebook
 - `Pillow` — Encodes the RGB array as PNG

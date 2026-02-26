@@ -205,7 +205,7 @@ def _(os):
 
     from rio_tiler.io import Reader
 
-    _DEM_PATH = os.path.abspath("DEM.tif")
+    _DEM_PATH = os.path.abspath("DEM_4326.tif")
     _TERRAIN_PORT = 8765
 
     def _elevation_to_terrain_rgb(elev):
