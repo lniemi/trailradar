@@ -61,6 +61,14 @@ const MapComponent = forwardRef(({ routeData }: { routeData?: any }, ref) => {
       terrain: { source: 'mapbox-dem', exaggeration: 1.5 }
     })
 
+    // Add user location button with heading tracking (Google Maps-style behavior)
+    const geolocateControl = new mapboxgl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true },
+      trackUserLocation: true,
+      showUserHeading: true,
+    })
+    map.current.addControl(geolocateControl, 'top-right')
+
     map.current.on('load', () => {
       map.current.addSource('mapbox-dem', {
         type: 'raster-dem',

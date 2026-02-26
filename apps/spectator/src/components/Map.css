@@ -2,3 +2,99 @@
   width: 100%;
   height: 100vh;
 }
+
+/* ===== GeolocateControl Custom Styling ===== */
+
+/* Remove default Mapbox white box container */
+.map-container .mapboxgl-ctrl-top-right .mapboxgl-ctrl-group {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  border: none;
+}
+
+/* Style button to match app's dark translucent design (same as ARButton) */
+.map-container .mapboxgl-ctrl-geolocate {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(30, 30, 30, 0.9);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 10px 10px 0 0;
+}
+
+.map-container .mapboxgl-ctrl-geolocate:hover {
+  background: rgba(50, 50, 50, 0.95);
+  transform: scale(1.05);
+}
+
+/* Replace default Mapbox icon with navigation arrow via CSS mask */
+.map-container .mapboxgl-ctrl-geolocate .mapboxgl-ctrl-icon {
+  background-image: none !important;
+  width: 24px;
+  height: 24px;
+  display: block;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpolygon points='3 11 22 2 13 21 11 13 3 11'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpolygon points='3 11 22 2 13 21 11 13 3 11'/%3E%3C/svg%3E");
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  background-color: white;
+}
+
+/* Active state — tracking user location */
+.map-container .mapboxgl-ctrl-geolocate.mapboxgl-ctrl-geolocate-active {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.map-container .mapboxgl-ctrl-geolocate.mapboxgl-ctrl-geolocate-active .mapboxgl-ctrl-icon {
+  background-color: #3b82f6;
+}
+
+/* Background state — user panned away, dot still visible */
+.map-container .mapboxgl-ctrl-geolocate.mapboxgl-ctrl-geolocate-background {
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.map-container .mapboxgl-ctrl-geolocate.mapboxgl-ctrl-geolocate-background .mapboxgl-ctrl-icon {
+  background-color: rgba(59, 130, 246, 0.6);
+}
+
+/* Error state */
+.map-container .mapboxgl-ctrl-geolocate.mapboxgl-ctrl-geolocate-active-error {
+  border-color: #ef4444;
+}
+
+.map-container .mapboxgl-ctrl-geolocate.mapboxgl-ctrl-geolocate-active-error .mapboxgl-ctrl-icon {
+  background-color: #ef4444;
+}
+
+/* Waiting/loading state — pulse animation */
+.map-container .mapboxgl-ctrl-geolocate.mapboxgl-ctrl-geolocate-waiting .mapboxgl-ctrl-icon {
+  animation: geolocate-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes geolocate-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Disabled state */
+.map-container .mapboxgl-ctrl-geolocate:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.map-container .mapboxgl-ctrl-geolocate:disabled:hover {
+  transform: none;
+  background: rgba(30, 30, 30, 0.9);
+}

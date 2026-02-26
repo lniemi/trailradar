@@ -115,9 +115,11 @@ import { Button, Card } from '@trailradar/ui'
 
 - **Entry point**: [apps/spectator/src/main.tsx](apps/spectator/src/main.tsx) - Sets up React, Router, and Mapbox CSS
 - **Router**: [apps/spectator/src/App.tsx](apps/spectator/src/App.tsx) - Defines application routes
-- **Pages**:
-  - [apps/spectator/src/pages/Home.tsx](apps/spectator/src/pages/Home.tsx) - Main map view with race UI components (timer, leaderboard, athlete info)
-  - [apps/spectator/src/pages/SimulationManager.tsx](apps/spectator/src/pages/SimulationManager.tsx) - Control panel for athlete simulation (separate window)
+- **Routes**:
+  - `/` → [apps/spectator/src/pages/Trails.tsx](apps/spectator/src/pages/Trails.tsx) - Trail selection landing page (browse trails, import GPX)
+  - `/trail/:trailId` → [apps/spectator/src/pages/Home.tsx](apps/spectator/src/pages/Home.tsx) - Main map view with race UI components (timer, leaderboard, athlete info)
+  - `/simulations` → [apps/spectator/src/pages/SimulationManager.tsx](apps/spectator/src/pages/SimulationManager.tsx) - Control panel for athlete simulation (separate window)
+  - `/vr-simulation` → VR simulation control page
 
 ### Cross-Window Communication Pattern
 
@@ -141,8 +143,9 @@ This pattern enables real-time synchronization between windows without a backend
 
 [apps/spectator/src/components/Map.tsx](apps/spectator/src/components/Map.tsx) is the core component that:
 - Initializes Mapbox GL with globe projection and terrain (DEM exaggeration: 1.5)
-- Loads the TOR330 route from [apps/spectator/public/TOR330.geojson](apps/spectator/public/TOR330.geojson)
-- Renders the route as a yellow line layer
+- Accepts a `routeData` prop (GeoJSON object) from the parent — does **not** fetch route data itself
+- Renders the route as a yellow line layer (source: `route`, layer: `route-line`)
+- Handles race condition between route data arrival and map readiness using `pendingRouteData` ref and `map.isStyleLoaded()` check
 - Auto-fits the map bounds to the route extent
 - **Single-athlete mode methods** (via ref):
   - `updateAthletePosition(lng, lat)` - Updates single athlete marker position
@@ -163,7 +166,7 @@ The simulation system allows virtual athletes to traverse routes for testing and
 
 **Core module**: [apps/spectator/src/simulations/athleteSimulation.ts](apps/spectator/src/simulations/athleteSimulation.ts)
 - `AthleteSimulation` class manages simulated athlete movement along the route
-- Loads route coordinates from GeoJSON and calculates total distance
+- `initialize(routeCoordinates?)` accepts route coordinates directly; falls back to fetching `/TOR330.geojson` if none provided
 - Supports initial positioning (athletes can start at any distance along route)
 - Provides controls: start, pause, resume, stop, reset, and speed adjustment
 - Returns current state including position (lng/lat/elevation), distance covered, progress %, elapsed time, and finish status
@@ -172,6 +175,7 @@ The simulation system allows virtual athletes to traverse routes for testing and
 
 **Core module**: [apps/spectator/src/simulations/multiAthleteSimulation.ts](apps/spectator/src/simulations/multiAthleteSimulation.ts)
 - `MultiAthleteSimulation` class manages multiple concurrent `AthleteSimulation` instances
+- `initialize(routeCoordinates?)` passes route coordinates through to each child `AthleteSimulation`
 - Each athlete runs independently with their own simulation instance
 - **Global controls**: `start()`, `pause()`, `resume()`, `stop()`, `reset()`, `setGlobalSpeed(speed)`
 - **Individual controls**: `pauseAthlete(id)`, `resumeAthlete(id)`, `stopAthlete(id)`, `setAthleteSpeed(id, speed)`
@@ -189,12 +193,13 @@ The simulation system allows virtual athletes to traverse routes for testing and
 
 #### Simulation Architecture
 
-- **Single-athlete mode**: Home.jsx maintains one `AthleteSimulation` instance in `simulationRef`
-- **Multi-athlete mode**: Home.jsx maintains one `MultiAthleteSimulation` instance in `multiSimulationRef` that manages multiple athlete simulations internally
+- **Single-athlete mode**: Home.tsx maintains one `AthleteSimulation` instance in `simulationRef`
+- **Multi-athlete mode**: Home.tsx maintains one `MultiAthleteSimulation` instance in `multiSimulationRef` that manages multiple athlete simulations internally
 - Both modes are mutually exclusive - starting one mode stops the other
-- All athletes share the same route data (loaded once per simulation instance for efficiency)
+- Route data is loaded once by Home.tsx (based on `trailId` URL param) and passed to simulations via `initialize(routeCoordinatesRef.current)`
 - Map displays update every 100ms with current positions
 - Leaderboard automatically sorts athletes by distance in real-time
+- Simulations work on any trail (built-in or imported GPX)
 
 ### UI Components
 
@@ -318,11 +323,62 @@ AthleteInfoSheet notifies the parent via callbacks:
 5. Use controls to manage simulation (pause, speed changes, etc.)
 6. View real-time updates on both windows
 
+### Trail Selection & GPX Import
+
+The app supports multiple trails via a landing page and GPX file import:
+
+**Trail Data Model** ([apps/spectator/src/types/trail.ts](apps/spectator/src/types/trail.ts)):
+```typescript
+interface Trail {
+  id: string
+  name: string
+  location: string
+  distance: number        // km
+  elevationGain?: number  // meters
+  source: 'builtin' | 'imported'
+  geojsonUrl?: string     // for built-in or server-stored trails
+  geojsonData?: object    // for inline data (legacy)
+}
+```
+
+**Built-in trails**: Defined in [apps/spectator/src/data/trails.ts](apps/spectator/src/data/trails.ts) (currently TOR330).
+
+**Trails Landing Page** ([apps/spectator/src/pages/Trails.tsx](apps/spectator/src/pages/Trails.tsx)):
+- Lists all trails (built-in + imported) fetched from the server API
+- "Import GPX" button opens file picker, parses GPX via `@mapbox/togeojson`, saves to server
+- Imported trails show a delete button
+- Clicking a trail navigates to `/trail/:trailId`
+
+**GPX Import Flow**:
+1. User selects `.gpx` file
+2. [apps/spectator/src/utils/gpxToGeojson.ts](apps/spectator/src/utils/gpxToGeojson.ts) parses XML with `@mapbox/togeojson`, normalizes to MultiLineString GeoJSON with `[lng, lat, elevation]` coordinates, calculates distance and elevation gain
+3. Trail metadata + GeoJSON sent to `POST /api/trails` (Vite dev server plugin)
+4. Plugin saves GeoJSON to `public/imported-trails/<id>.geojson` and updates `index.json`
+5. Trail is now accessible from any device on the same network
+
+**Server-Side Trail Storage** (dev mode):
+- [apps/spectator/vite-plugin-trails.ts](apps/spectator/vite-plugin-trails.ts) — Vite plugin that adds API endpoints:
+  - `GET /api/trails` — List all imported trails (reads `public/imported-trails/index.json`)
+  - `POST /api/trails` — Save new imported trail (writes GeoJSON file + updates index)
+  - `DELETE /api/trails?id=...` — Delete an imported trail
+- Trail storage utilities in [apps/spectator/src/utils/trailStorage.ts](apps/spectator/src/utils/trailStorage.ts) — async functions: `getAllTrails()`, `getTrailById()`, `saveImportedTrail()`, `deleteImportedTrail()`
+- `public/imported-trails/` is **gitignored** — imported files stay local, not committed to the repo
+- Cross-device sharing works because both PC and mobile hit the same Vite dev server on the LAN
+
+**Home.tsx Trail Loading**:
+- Reads `trailId` from URL params via `useParams()`
+- Looks up trail by ID (async — checks built-in list, then fetches imported index from server)
+- For built-in trails: fetches GeoJSON from `geojsonUrl` (e.g. `/TOR330.geojson`)
+- For imported trails: fetches GeoJSON from `geojsonUrl` (e.g. `/imported-trails/<id>.geojson`)
+- Passes loaded GeoJSON as `routeData` prop to `<Map>` and route coordinates to simulation `initialize()`
+- Shows loading/error states while data loads
+
 ### Data Files
 
 Route data is stored in [apps/spectator/public/](apps/spectator/public/):
 - `TOR330.geojson` - Full race route (converted from GPX)
 - `TOR330_waypoints.geojson` - Key waypoints along the route
+- `imported-trails/` - User-imported trail GeoJSON files (gitignored)
 
 Mock athlete data is defined in [apps/spectator/src/simulations/mockAthletes.ts](apps/spectator/src/simulations/mockAthletes.ts):
 - 10 athletes with unique IDs, names, bib numbers
