@@ -316,13 +316,17 @@ export default function ARViewLocAR({
 
       // --- LocAR: DeviceOrientationControls ---
       // Permission was already requested in handleActivate (user gesture),
-      // so we can just create the controls here.
+      // so we skip the permission dialog and connect directly.
       try {
         const controls = new DeviceOrientationControls(camera, {
           smoothingFactor: 0.1,
+          enablePermissionDialog: false,
         })
+        // Must call init() then connect() for controls to receive events
+        controls.init()
+        controls.connect()
         deviceControlsRef.current = controls
-        console.log('[ARViewLocAR] DeviceOrientationControls ready')
+        console.log('[ARViewLocAR] DeviceOrientationControls connected')
       } catch (err) {
         console.warn('[ARViewLocAR] DeviceOrientation unavailable:', err)
         setError('Device orientation not available.')
