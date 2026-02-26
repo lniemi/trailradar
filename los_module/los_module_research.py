@@ -90,8 +90,8 @@ def _():
     if os.path.isdir(_proj_data):
         os.environ["PROJ_DATA"] = _proj_data
 
-    import leafmap.leafmap as leafmap
-    print("localtileserver")
+    import leafmap.maplibregl as leafmap
+    print("maplibregl")
     return leafmap, os
 
 
@@ -129,11 +129,19 @@ def _(leafmap):
     dem = "DEM.tif"
     m = leafmap.Map()
     m.add_raster(dem, colormap="terrain", layer_name="DEM")
+    m.add_draw_control(position="top-left")
 
     tracks = gpd.read_file("TOR330-CERT-2025.gpx", layer="tracks")
-    m.add_gdf(tracks, layer_name="TOR330 Route", style={"color": "red", "weight": 3})
+    m.add_gdf(tracks, name="TOR330 Route", layer_type="line", paint={"line-color": "red", "line-width": 3})
     m
     return gpd, m, tracks
+
+
+@app.cell
+def _(m):
+    m.draw_features_selected
+    print(m.draw_features_selected)
+    return
 
 
 @app.cell
@@ -203,7 +211,7 @@ def _(leafmap, marker_lat, marker_lng, tracks):
     m2.add_raster('DEM.tif', colormap='terrain', layer_name='DEM', opacity=0.7)
     _overlay = ImageOverlay(url=_data_url, bounds=((_bounds[1], _bounds[0]), (_bounds[3], _bounds[2])), name='Viewshed')
     m2.add(_overlay)
-    m2.add_gdf(tracks, layer_name='TOR330 Route', style={'color': 'red', 'weight': 3})
+    m2.add_gdf(tracks, name='TOR330 Route', layer_type='line', paint={'line-color': 'red', 'line-width': 3})
     _icon = AwesomeIcon(name='eye', marker_color='red', icon_color='white')
     obs_marker = Marker(location=(marker_lat, marker_lng), icon=_icon, title='Observer')
     m2.add(obs_marker)
@@ -295,7 +303,7 @@ def _(
     m3.add_raster('DEM.tif', colormap='terrain', layer_name='DEM', opacity=0.7)
     _overlay = ImageOverlay(url=_data_url, bounds=((_bounds[1], _bounds[0]), (_bounds[3], _bounds[2])), name='Viewshed (destriped)')
     m3.add(_overlay)
-    m3.add_gdf(tracks, layer_name='TOR330 Route', style={'color': 'red', 'weight': 3})
+    m3.add_gdf(tracks, name='TOR330 Route', layer_type='line', paint={'line-color': 'red', 'line-width': 3})
     _icon = AwesomeIcon(name='eye', marker_color='red', icon_color='white')
     m3.add(Marker(location=(marker_lat, marker_lng), icon=_icon, title='Observer'))
     m3
