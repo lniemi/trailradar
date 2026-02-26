@@ -463,6 +463,7 @@ function Home() {
         onClose={() => setIsARViewOpen(false)}
         athletePositions={athletePositionsForVR}
         currentPosition={streetViewPosition}
+        routeCoordinates={routeCoordinatesRef.current ?? undefined}
       />
       <StreetLevelView
         isOpen={isStreetViewOpen}

@@ -11,6 +11,9 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { Line2 } from 'three/examples/jsm/lines/Line2.js'
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { LocationBased, DeviceOrientationControls } from 'locar'
 import './ARViewLocAR.css'
 
@@ -30,6 +33,7 @@ interface ARViewProps {
     lng: number
     estimatedElevation?: number
   } | null
+  routeCoordinates?: number[][]  // Array of [lng, lat, elevation]
 }
 
 // --------------- Helpers ---------------
@@ -134,6 +138,7 @@ export default function ARViewLocAR({
   onClose,
   athletePositions = [],
   currentPosition = null,
+  routeCoordinates,
 }: ARViewProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -152,6 +157,11 @@ export default function ARViewLocAR({
   const rafRef = useRef(0)
   const geoWatchRef = useRef<number | null>(null)
   const disposedRef = useRef(false)
+
+  // Route line refs
+  const routeLineRef = useRef<Line2 | null>(null)
+  const routeMaterialRef = useRef<LineMaterial | null>(null)
+  const routeLastBuildPosRef = useRef<{ lat: number; lng: number } | null>(null)
 
   // State
   const [showDebug, setShowDebug] = useState(true)
@@ -348,6 +358,8 @@ export default function ARViewLocAR({
         camera.aspect = nw / nh
         camera.updateProjectionMatrix()
         renderer.setSize(nw, nh)
+        // Update LineMaterial resolution for correct line width
+        routeMaterialRef.current?.resolution.set(nw, nh)
       }
       window.addEventListener('resize', onResize)
 
@@ -412,6 +424,18 @@ export default function ARViewLocAR({
         geoWatchRef.current = null
       }
 
+      // Dispose route line
+      if (routeLineRef.current) {
+        sceneRef.current?.remove(routeLineRef.current)
+        routeLineRef.current.geometry.dispose()
+        routeLineRef.current = null
+      }
+      if (routeMaterialRef.current) {
+        routeMaterialRef.current.dispose()
+        routeMaterialRef.current = null
+      }
+      routeLastBuildPosRef.current = null
+
       // Dispose markers
       markersRef.current.forEach((sprite) => {
         sceneRef.current?.remove(sprite)
@@ -459,6 +483,92 @@ export default function ARViewLocAR({
       currentPosition.estimatedElevation ?? 0,
     )
   }, [isOpen, activated, currentPosition])
+
+  // ==================== Route line rendering ====================
+  useEffect(() => {
+    if (!isOpen || !activated || !locationBasedRef.current || !sceneRef.current || !routeCoordinates?.length) return
+
+    const scene = sceneRef.current
+    const lb = locationBasedRef.current
+
+    // Determine viewer position for nearby filtering
+    const viewerPos = liveGpsRef.current
+      ?? (currentPosition ? { lat: currentPosition.lat, lng: currentPosition.lng } : null)
+    if (!viewerPos) return
+
+    // Skip rebuild if viewer hasn't moved significantly (>200m) from last build
+    if (routeLastBuildPosRef.current) {
+      const movedDist = haversineDistance(
+        routeLastBuildPosRef.current.lat, routeLastBuildPosRef.current.lng,
+        viewerPos.lat, viewerPos.lng,
+      )
+      if (movedDist < 200) return
+    }
+
+    console.log('[ARViewLocAR] Building route line near', viewerPos.lat.toFixed(4), viewerPos.lng.toFixed(4))
+    routeLastBuildPosRef.current = { lat: viewerPos.lat, lng: viewerPos.lng }
+
+    // Remove old route line
+    if (routeLineRef.current) {
+      scene.remove(routeLineRef.current)
+      routeLineRef.current.geometry.dispose()
+      routeLineRef.current = null
+    }
+
+    // Filter to coordinates within 3km of viewer
+    const RADIUS = 3000
+    const nearbyCoords: number[][] = []
+    for (let i = 0; i < routeCoordinates.length; i++) {
+      const coord = routeCoordinates[i]
+      const dist = haversineDistance(viewerPos.lat, viewerPos.lng, coord[1], coord[0])
+      if (dist <= RADIUS) {
+        nearbyCoords.push(coord)
+      }
+    }
+
+    if (nearbyCoords.length < 2) {
+      console.log('[ARViewLocAR] Not enough nearby route points:', nearbyCoords.length)
+      return
+    }
+
+    // Sample down if too many points (cap at ~500)
+    let sampled = nearbyCoords
+    if (nearbyCoords.length > 500) {
+      const step = Math.ceil(nearbyCoords.length / 500)
+      sampled = nearbyCoords.filter((_, i) => i % step === 0 || i === nearbyCoords.length - 1)
+    }
+
+    // Convert to Three.js world positions
+    const positions: number[] = []
+    for (const coord of sampled) {
+      const [lng, lat, elev = 0] = coord
+      const worldXZ = lb.lonLatToWorldCoords(lng, lat)
+      positions.push(worldXZ[0], elev, worldXZ[1])
+    }
+
+    // Create Line2 with fat-line rendering
+    const geometry = new LineGeometry()
+    geometry.setPositions(positions)
+
+    if (!routeMaterialRef.current) {
+      routeMaterialRef.current = new LineMaterial({
+        color: 0xffdd00,
+        linewidth: 6,
+        transparent: true,
+        opacity: 0.85,
+        depthTest: false,
+        worldUnits: false,
+      })
+    }
+    routeMaterialRef.current.resolution.set(window.innerWidth, window.innerHeight)
+
+    const line = new Line2(geometry, routeMaterialRef.current)
+    line.computeLineDistances()
+    scene.add(line)
+    routeLineRef.current = line
+
+    console.log(`[ARViewLocAR] Route line rendered: ${sampled.length} points within ${RADIUS}m`)
+  }, [isOpen, activated, routeCoordinates, liveGps, currentPosition])
 
   // ==================== Athlete markers ====================
   // Use live GPS position for distance calculations when available
@@ -671,6 +781,7 @@ export default function ARViewLocAR({
           <div>Athletes: {debugInfo.athletes}</div>
           <div>GPS: {debugInfo.gps}</div>
           <div>Source: {debugInfo.gpsSource}</div>
+          <div>Route: {routeLineRef.current ? 'visible' : 'none'}</div>
         </div>
       )}
       <button
