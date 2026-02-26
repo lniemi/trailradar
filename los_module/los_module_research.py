@@ -121,38 +121,216 @@ def _(mo):
 
 
 @app.cell
-def _(leafmap):
-    # TODO: Inspect DEM
-    # TODO: Print basic statistics (min/max elevation, shape)
+def _(mo):
+    get_observer, set_observer = mo.state(None)
+    return get_observer, set_observer
+
+
+@app.cell
+def _(leafmap, set_observer):
     import geopandas as gpd
 
     dem = "DEM.tif"
-    m = leafmap.Map()
+    m = leafmap.Map(style="dark-matter")
     m.add_raster(dem, colormap="terrain", layer_name="DEM")
-    m.add_draw_control(position="top-left")
 
     tracks = gpd.read_file("TOR330-CERT-2025.gpx", layer="tracks")
     m.add_gdf(tracks, name="TOR330 Route", layer_type="line", paint={"line-color": "red", "line-width": 3})
+
+    # Observer marker as a GeoJSON source + circle layer so we can update
+    # (move) it on each click instead of stacking multiple markers.
+    _empty_point = {"type": "FeatureCollection", "features": []}
+    m.add_source("observer-src", {"type": "geojson", "data": _empty_point})
+    m.add_layer({
+        "id": "observer-circle",
+        "type": "circle",
+        "source": "observer-src",
+        "paint": {
+            "circle-radius": 8,
+            "circle-color": "#FF0000",
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#FFFFFF",
+        },
+    })
+
+    # Click to place / move the single observer
+    def _on_click(change):
+        if change["new"]:
+            lng, lat = change["new"]["lng"], change["new"]["lat"]
+            m.set_data("observer-src", {
+                "type": "FeatureCollection",
+                "features": [{
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [lng, lat]},
+                }],
+            })
+            set_observer({"lng": lng, "lat": lat})
+
+    m.observe(_on_click, names="clicked")
+
     m
     return gpd, m, tracks
 
 
-@app.cell
-def _(m):
-    m.draw_features_selected
-    print(m.draw_features_selected)
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### 1.4 3D Terrain Rendering from Local DEM
+
+    MapLibre's `set_terrain()` requires **terrain-RGB encoded tiles** served over HTTP — it
+    cannot consume a raw GeoTIFF directly.  We build a lightweight tile server using
+    `rio-tiler` (already installed) + `starlette` + `uvicorn` that:
+
+    1. Reads elevation from `DEM.tif` on the fly (handles reprojection from EPSG:25832 → Web Mercator automatically)
+    2. Encodes each tile into Mapbox terrain-RGB format: `height = -10000 + ((R×256² + G×256 + B) × 0.1)`
+    3. Returns a 256×256 PNG that MapLibre interprets as a `raster-dem` source
+
+    This runs entirely locally — no external API keys or tile services needed.
+    """)
     return
 
 
 @app.cell
-def _(gpd, m, os):
+def _(os):
+    """Start a local terrain-RGB tile server (rio-tiler + starlette + uvicorn)."""
+    import threading
+    import numpy as np_server
+    from io import BytesIO
+    from PIL import Image as PILImage
+
+    from starlette.applications import Starlette
+    from starlette.responses import Response
+    from starlette.routing import Route
+    import uvicorn
+
+    from rio_tiler.io import Reader
+
+    _DEM_PATH = os.path.abspath("DEM.tif")
+    _TERRAIN_PORT = 8765
+
+    def _elevation_to_terrain_rgb(elev):
+        """Encode elevation (metres) -> Mapbox terrain-RGB (3 x uint8)."""
+        v = ((elev + 10000.0) / 0.1).clip(0, 256**3 - 1).astype(np_server.uint32)
+        r = ((v >> 16) & 0xFF).astype(np_server.uint8)
+        g = ((v >> 8) & 0xFF).astype(np_server.uint8)
+        b = (v & 0xFF).astype(np_server.uint8)
+        return np_server.stack([r, g, b], axis=0)
+
+    def _tile_handler(request):
+        z = int(request.path_params["z"])
+        x = int(request.path_params["x"])
+        y = int(request.path_params["y"])
+        try:
+            with Reader(_DEM_PATH) as src:
+                img = src.tile(x, y, z, tilesize=256)
+            rgb = _elevation_to_terrain_rgb(img.data[0].astype(np_server.float64))
+            pil = PILImage.fromarray(np_server.transpose(rgb, (1, 2, 0)))
+            buf = BytesIO()
+            pil.save(buf, format="PNG")
+            return Response(
+                buf.getvalue(),
+                media_type="image/png",
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "public, max-age=3600",
+                },
+            )
+        except Exception:
+            # Tile outside DEM extent - return a flat-sea-level terrain-RGB PNG
+            # Encoding for 0m elevation: (0 + 10000) / 0.1 = 100000
+            # R=1, G=134, B=160 -> decodes to exactly 0.0m
+            buf = BytesIO()
+            PILImage.new("RGB", (256, 256), (1, 134, 160)).save(buf, format="PNG")
+            return Response(buf.getvalue(), media_type="image/png",
+                            headers={"Access-Control-Allow-Origin": "*"})
+
+    _app = Starlette(routes=[Route("/tiles/{z}/{x}/{y}.png", _tile_handler)])
+
+    _thread = threading.Thread(
+        target=uvicorn.run,
+        args=(_app,),
+        kwargs={"host": "127.0.0.1", "port": _TERRAIN_PORT, "log_level": "warning"},
+        daemon=True,
+    )
+    _thread.start()
+
+    terrain_tile_url = f"http://127.0.0.1:{_TERRAIN_PORT}/tiles/{{z}}/{{x}}/{{y}}.png"
+    print(f"Terrain-RGB tile server running at {terrain_tile_url}")
+    return (terrain_tile_url,)
+
+
+@app.cell
+def _(leafmap, terrain_tile_url, tracks):
+    """Render the DEM as 3D terrain using MapLibre."""
+    m_3d = leafmap.Map(
+        center=[7.42, 45.71],
+        zoom=11,
+        pitch=60,
+        bearing=30,
+        style={
+            "version": 8,
+            "sources": {
+                "osm": {
+                    "type": "raster",
+                    "tiles": ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"],
+                    "tileSize": 256,
+                    "attribution": "&copy; OpenStreetMap Contributors",
+                    "maxzoom": 19,
+                },
+                "terrainSource": {
+                    "type": "raster-dem",
+                    "tiles": [terrain_tile_url],
+                    "tileSize": 256,
+                    "encoding": "mapbox",
+                },
+                "hillshadeSource": {
+                    "type": "raster-dem",
+                    "tiles": [terrain_tile_url],
+                    "tileSize": 256,
+                    "encoding": "mapbox",
+                },
+            },
+            "layers": [
+                {"id": "osm", "type": "raster", "source": "osm"},
+                {
+                    "id": "hills",
+                    "type": "hillshade",
+                    "source": "hillshadeSource",
+                    "layout": {"visibility": "visible"},
+                    "paint": {"hillshade-shadow-color": "#473B24"},
+                },
+            ],
+            "terrain": {"source": "terrainSource", "exaggeration": 1},
+        },
+    )
+
+    # Overlay the TOR330 route
+    m_3d.add_gdf(
+        tracks,
+        name="TOR330 Route",
+        layer_type="line",
+        paint={"line-color": "red", "line-width": 3},
+    )
+
+    m_3d
+    return
+
+
+@app.cell
+def _(get_observer, mo):
+    mo.stop(get_observer() is None, mo.md("**Click on the map above** to place the observer."))
+    observer = get_observer()
+    mo.md(f"Observer placed at **{observer['lat']:.6f}°N, {observer['lng']:.6f}°E**")
+    return (observer,)
+
+
+@app.cell
+def _(gpd, m, observer, os):
     from whitebox import WhiteboxTools
     from shapely.geometry import Point
     import rasterio
-    assert m.draw_features, 'No marker drawn! Add a marker on the map above, then re-run this cell.'
     # 1. Get marker coordinates from the map
-    coords = m.draw_features[-1]['geometry']['coordinates']
-    marker_lng, marker_lat = (coords[0], coords[1])  # last drawn marker
+    marker_lng, marker_lat = observer["lng"], observer["lat"]
     print(f'Observer position (WGS84): lng={marker_lng:.6f}, lat={marker_lat:.6f}')
     station_gdf = gpd.GeoDataFrame({'id': [1]}, geometry=[Point(marker_lng, marker_lat)], crs='EPSG:4326').to_crs('EPSG:25832')
     print(f'Reprojected to EPSG:25832: x={station_gdf.geometry.iloc[0].x:.1f}, y={station_gdf.geometry.iloc[0].y:.1f}')
