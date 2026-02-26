@@ -1,0 +1,560 @@
+/**
+ * ARViewLocAR - Real AR view using LocAR.js + Three.js
+ *
+ * Drop-in replacement for ARView. In Home.tsx, swap:
+ *   import ARView from '../components/ARView'
+ * with:
+ *   import ARView from '../components/ARViewLocAR'
+ *
+ * Requires a mobile device with camera, GPS, and compass.
+ * Falls back gracefully on desktop (dark background, no orientation tracking).
+ */
+import { useEffect, useRef, useState } from 'react'
+import * as THREE from 'three'
+import { LocationBased, DeviceOrientationControls } from 'locar'
+import './ARViewLocAR.css'
+
+interface ARViewProps {
+  isOpen: boolean
+  onClose: () => void
+  athletePositions?: Array<{
+    id: string
+    name: string
+    position: number
+    lat: number
+    lng: number
+    elevation?: number
+  }>
+  currentPosition?: {
+    lat: number
+    lng: number
+    estimatedElevation?: number
+  } | null
+}
+
+// --------------- Helpers ---------------
+
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function getPositionColor(pos: number): string {
+  if (pos === 1) return '#FFD700'
+  if (pos === 2) return '#C0C0C0'
+  if (pos === 3) return '#CD7F32'
+  return '#FF0000'
+}
+
+function formatDistance(meters: number): string {
+  return meters > 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`
+}
+
+function createMarkerTexture(
+  name: string,
+  position: number,
+  distStr: string,
+  color: string
+): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')!
+
+  // Background
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'
+  ctx.beginPath()
+  ctx.roundRect(0, 0, 512, 256, 16)
+  ctx.fill()
+
+  // Border
+  ctx.strokeStyle = color
+  ctx.lineWidth = 4
+  ctx.beginPath()
+  ctx.roundRect(2, 2, 508, 252, 14)
+  ctx.stroke()
+
+  // Position badge
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.arc(50, 80, 30, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#000'
+  ctx.font = 'bold 28px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(`${position}`, 50, 80)
+
+  // Name
+  ctx.fillStyle = '#fff'
+  ctx.font = 'bold 36px sans-serif'
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(name, 95, 70)
+
+  // Distance
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'
+  ctx.font = '26px sans-serif'
+  ctx.fillText(distStr, 95, 130)
+
+  // Bottom pointer
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.moveTo(246, 240)
+  ctx.lineTo(256, 256)
+  ctx.lineTo(266, 240)
+  ctx.fill()
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.needsUpdate = true
+  return texture
+}
+
+// --------------- Types ---------------
+
+interface OffscreenAthlete {
+  id: string
+  name: string
+  position: number
+  distance: number
+  screenX: number
+  screenY: number
+  color: string
+}
+
+// --------------- Component ---------------
+
+export default function ARViewLocAR({
+  isOpen,
+  onClose,
+  athletePositions = [],
+  currentPosition = null,
+}: ARViewProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Three.js refs
+  const sceneRef = useRef<THREE.Scene | null>(null)
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
+
+  // LocAR refs — typed as any because locar may lack full TS declarations
+  const locationBasedRef = useRef<ReturnType<typeof LocationBased> | null>(null)
+  const deviceControlsRef = useRef<ReturnType<typeof DeviceOrientationControls> | null>(null)
+
+  const markersRef = useRef<Map<string, THREE.Sprite>>(new window.Map())
+  const streamRef = useRef<MediaStream | null>(null)
+  const rafRef = useRef(0)
+
+  // State
+  const [showDebug, setShowDebug] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [offscreenAthletes, setOffscreenAthletes] = useState<OffscreenAthlete[]>([])
+  const [debugInfo, setDebugInfo] = useState({
+    heading: 0,
+    fps: 0,
+    athletes: 0,
+    gps: 'N/A',
+  })
+
+  // FPS tracking refs (avoid state updates per frame)
+  const fpsCountRef = useRef(0)
+  const fpsTimeRef = useRef(performance.now())
+  const headingRef = useRef(0)
+
+  // ==================== Lifecycle: init & teardown ====================
+  useEffect(() => {
+    if (!isOpen) return
+
+    let disposed = false
+
+    const init = async () => {
+      if (!canvasRef.current || !videoRef.current) return
+
+      const w = window.innerWidth
+      const h = window.innerHeight
+
+      // --- Camera feed ---
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        })
+        if (disposed) {
+          stream.getTracks().forEach((t) => t.stop())
+          return
+        }
+        videoRef.current!.srcObject = stream
+        streamRef.current = stream
+        console.log('[ARViewLocAR] Camera stream started')
+      } catch (err) {
+        console.warn('[ARViewLocAR] Camera unavailable:', err)
+        setError('Camera not available. Markers shown on dark background.')
+      }
+
+      if (disposed) return
+
+      // --- Three.js ---
+      const scene = new THREE.Scene()
+      const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 50000)
+      const renderer = new THREE.WebGLRenderer({
+        canvas: canvasRef.current!,
+        alpha: true,
+        antialias: true,
+      })
+      renderer.setSize(w, h)
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+      renderer.setClearColor(0x000000, 0)
+
+      scene.add(new THREE.AmbientLight(0xffffff, 1))
+
+      sceneRef.current = scene
+      cameraRef.current = camera
+      rendererRef.current = renderer
+
+      // --- LocAR: LocationBased ---
+      try {
+        const lb = new LocationBased(scene, camera, {
+          gpsMinDistance: 0,
+          gpsMinAccuracy: 1000,
+        })
+        locationBasedRef.current = lb
+
+        if (currentPosition) {
+          lb.fakeGps(
+            currentPosition.lng,
+            currentPosition.lat,
+            currentPosition.estimatedElevation ?? 0,
+          )
+          console.log(
+            '[ARViewLocAR] GPS position set:',
+            currentPosition.lat.toFixed(5),
+            currentPosition.lng.toFixed(5),
+          )
+        }
+      } catch (err) {
+        console.error('[ARViewLocAR] LocationBased init failed:', err)
+        setError('GPS positioning initialisation failed.')
+      }
+
+      // --- LocAR: DeviceOrientationControls ---
+      try {
+        // iOS 13+ requires explicit permission from a user gesture
+        const DOE = DeviceOrientationEvent as unknown as {
+          requestPermission?: () => Promise<string>
+        }
+        if (typeof DOE.requestPermission === 'function') {
+          const perm = await DOE.requestPermission()
+          if (disposed) return
+          if (perm !== 'granted') {
+            setError('Orientation permission denied. Compass will not work.')
+          }
+        }
+
+        const controls = new DeviceOrientationControls(camera, {
+          smoothingFactor: 0.1,
+          enablePermissionDialog: true,
+        })
+        deviceControlsRef.current = controls
+        console.log('[ARViewLocAR] DeviceOrientationControls ready')
+      } catch (err) {
+        console.warn('[ARViewLocAR] DeviceOrientation unavailable:', err)
+        setError('Device orientation not available.')
+      }
+
+      // Firefox mobile warning
+      if (
+        /firefox/i.test(navigator.userAgent) &&
+        /android|mobile/i.test(navigator.userAgent)
+      ) {
+        setError('Firefox mobile has limited orientation support. Try Chrome.')
+      }
+
+      // --- Resize handler ---
+      const onResize = () => {
+        if (disposed) return
+        const nw = window.innerWidth
+        const nh = window.innerHeight
+        camera.aspect = nw / nh
+        camera.updateProjectionMatrix()
+        renderer.setSize(nw, nh)
+      }
+      window.addEventListener('resize', onResize)
+
+      // --- Render loop ---
+      const animate = () => {
+        if (disposed) return
+        rafRef.current = requestAnimationFrame(animate)
+
+        deviceControlsRef.current?.update()
+        renderer.render(scene, camera)
+
+        // FPS + heading (updated once per second)
+        fpsCountRef.current++
+        const now = performance.now()
+        if (now - fpsTimeRef.current >= 1000) {
+          const fps = fpsCountRef.current
+          fpsCountRef.current = 0
+          fpsTimeRef.current = now
+
+          const euler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ')
+          const heading = ((-euler.y * 180) / Math.PI + 360) % 360
+          headingRef.current = heading
+
+          setDebugInfo({
+            heading: Math.round(heading),
+            fps,
+            athletes: markersRef.current.size,
+            gps: currentPosition
+              ? `${currentPosition.lat.toFixed(4)}, ${currentPosition.lng.toFixed(4)}`
+              : 'N/A',
+          })
+        }
+      }
+      animate()
+
+      // Store resize cleanup
+      return () => {
+        window.removeEventListener('resize', onResize)
+      }
+    }
+
+    let removeResize: (() => void) | undefined
+    init().then((fn) => {
+      removeResize = fn
+    })
+
+    // --- Cleanup ---
+    return () => {
+      disposed = true
+      cancelAnimationFrame(rafRef.current)
+      removeResize?.()
+
+      // Dispose markers
+      markersRef.current.forEach((sprite) => {
+        sceneRef.current?.remove(sprite)
+        if (sprite.material instanceof THREE.SpriteMaterial && sprite.material.map) {
+          sprite.material.map.dispose()
+        }
+        sprite.material.dispose()
+        sprite.geometry.dispose()
+      })
+      markersRef.current.clear()
+
+      // Renderer
+      rendererRef.current?.dispose()
+      rendererRef.current = null
+
+      // Camera stream
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+      streamRef.current = null
+
+      // Controls
+      const ctrl = deviceControlsRef.current as { dispose?: () => void } | null
+      ctrl?.dispose?.()
+
+      sceneRef.current = null
+      cameraRef.current = null
+      locationBasedRef.current = null
+      deviceControlsRef.current = null
+      setError(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
+
+  // ==================== GPS update ====================
+  useEffect(() => {
+    if (!isOpen || !locationBasedRef.current || !currentPosition) return
+    locationBasedRef.current.fakeGps(
+      currentPosition.lng,
+      currentPosition.lat,
+      currentPosition.estimatedElevation ?? 0,
+    )
+  }, [isOpen, currentPosition])
+
+  // ==================== Athlete markers ====================
+  useEffect(() => {
+    if (!isOpen || !locationBasedRef.current || !sceneRef.current) return
+
+    const scene = sceneRef.current
+    const lb = locationBasedRef.current
+    const existingIds = new Set(markersRef.current.keys())
+    const currentIds = new Set(athletePositions.map((a) => a.id))
+
+    // Remove departed athletes
+    existingIds.forEach((id) => {
+      if (!currentIds.has(id)) {
+        const sprite = markersRef.current.get(id)!
+        scene.remove(sprite)
+        if (sprite.material instanceof THREE.SpriteMaterial && sprite.material.map) {
+          sprite.material.map.dispose()
+        }
+        sprite.material.dispose()
+        sprite.geometry.dispose()
+        markersRef.current.delete(id)
+      }
+    })
+
+    // Add / update athletes
+    athletePositions.forEach((athlete) => {
+      const dist = currentPosition
+        ? haversineDistance(currentPosition.lat, currentPosition.lng, athlete.lat, athlete.lng)
+        : 0
+      const distStr = formatDistance(dist)
+      const color = getPositionColor(athlete.position)
+
+      if (markersRef.current.has(athlete.id)) {
+        const sprite = markersRef.current.get(athlete.id)!
+        scene.remove(sprite)
+        if (sprite.material instanceof THREE.SpriteMaterial && sprite.material.map) {
+          sprite.material.map.dispose()
+        }
+        sprite.material.map = createMarkerTexture(athlete.name, athlete.position, distStr, color)
+        sprite.material.needsUpdate = true
+        lb.add(sprite, athlete.lng, athlete.lat, athlete.elevation ?? 0)
+      } else {
+        const texture = createMarkerTexture(athlete.name, athlete.position, distStr, color)
+        const material = new THREE.SpriteMaterial({
+          map: texture,
+          transparent: true,
+          depthTest: false,
+          sizeAttenuation: true,
+        })
+        const sprite = new THREE.Sprite(material)
+        sprite.scale.set(300, 150, 1)
+        lb.add(sprite, athlete.lng, athlete.lat, athlete.elevation ?? 0)
+        markersRef.current.set(athlete.id, sprite)
+        console.log(`[ARViewLocAR] Marker added: ${athlete.name}`)
+      }
+    })
+  }, [isOpen, athletePositions, currentPosition])
+
+  // ==================== Off-screen indicators (5 Hz) ====================
+  useEffect(() => {
+    if (!isOpen) return
+
+    const interval = setInterval(() => {
+      const camera = cameraRef.current
+      if (!camera || !currentPosition) {
+        setOffscreenAthletes([])
+        return
+      }
+
+      const width = window.innerWidth
+      const height = window.innerHeight
+      const offscreen: OffscreenAthlete[] = []
+
+      athletePositions.forEach((athlete) => {
+        const sprite = markersRef.current.get(athlete.id)
+        if (!sprite) return
+
+        const worldPos = new THREE.Vector3()
+        sprite.getWorldPosition(worldPos)
+        const projected = worldPos.clone().project(camera)
+
+        const onScreen =
+          projected.x >= -1 &&
+          projected.x <= 1 &&
+          projected.y >= -1 &&
+          projected.y <= 1 &&
+          projected.z < 1
+
+        if (!onScreen) {
+          const dist = haversineDistance(
+            currentPosition.lat,
+            currentPosition.lng,
+            athlete.lat,
+            athlete.lng,
+          )
+          const angle = Math.atan2(projected.x, projected.y)
+          const edgeR = Math.min(width, height) / 2 - 50
+          const sx = width / 2 + Math.sin(angle) * edgeR
+          const sy = height / 2 - Math.cos(angle) * edgeR
+
+          offscreen.push({
+            id: athlete.id,
+            name: athlete.name,
+            position: athlete.position,
+            distance: dist,
+            screenX: Math.max(30, Math.min(width - 30, sx)),
+            screenY: Math.max(60, Math.min(height - 60, sy)),
+            color: getPositionColor(athlete.position),
+          })
+        }
+      })
+
+      setOffscreenAthletes(offscreen)
+    }, 200)
+
+    return () => clearInterval(interval)
+  }, [isOpen, athletePositions, currentPosition])
+
+  // ==================== Render ====================
+
+  if (!isOpen) return null
+
+  return (
+    <div className="ar-locar-container">
+      {/* Camera feed */}
+      <video ref={videoRef} className="ar-locar-video" autoPlay playsInline muted />
+
+      {/* Three.js overlay */}
+      <canvas ref={canvasRef} className="ar-locar-canvas" />
+
+      {/* Close */}
+      <button className="ar-close-button" onClick={onClose} aria-label="Close AR view">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </button>
+
+      {/* Error */}
+      {error && <div className="ar-locar-error">{error}</div>}
+
+      {/* Off-screen indicators */}
+      {offscreenAthletes.map((a) => (
+        <div
+          key={`off-${a.id}`}
+          className="ar-locar-offscreen-indicator"
+          style={{ left: a.screenX, top: a.screenY }}
+        >
+          <div className="ar-locar-indicator-arrow" style={{ color: a.color }}>
+            &#9650;
+          </div>
+          <div className="ar-locar-indicator-label">
+            <span style={{ color: a.color, fontWeight: 'bold' }}>
+              #{a.position} {a.name}
+            </span>
+            <span>{formatDistance(a.distance)}</span>
+          </div>
+        </div>
+      ))}
+
+      {/* Empty state */}
+      {athletePositions.length === 0 && (
+        <div className="ar-locar-no-athletes">No athletes in range</div>
+      )}
+
+      {/* Debug overlay */}
+      {showDebug && (
+        <div className="ar-locar-debug">
+          <div>Heading: {debugInfo.heading}&deg;</div>
+          <div>FPS: {debugInfo.fps}</div>
+          <div>Athletes: {debugInfo.athletes}</div>
+          <div>GPS: {debugInfo.gps}</div>
+        </div>
+      )}
+      <button
+        className="ar-locar-debug-toggle"
+        onClick={() => setShowDebug((v) => !v)}
+        aria-label="Toggle debug overlay"
+      >
+        {showDebug ? 'Hide Debug' : 'Debug'}
+      </button>
+    </div>
+  )
+}

@@ -379,6 +379,84 @@ The root directory contains source files including `TOR330-CERT-2025.gpx` (origi
 - LOD updates automatically via `onBeforeRender` callback
 - Limit tube geometry segments: `Math.min(points.length * 2, 1000)` to prevent excessive geometry
 
+### Real AR Views (Camera-Based)
+
+The app has two additional AR view implementations that use the **device camera, compass, and GPS** for real augmented reality (unlike ARView.tsx which is a simulated 3D terrain viewer). Both are drop-in replacements for ARView — they implement the same props interface:
+
+```typescript
+interface ARViewProps {
+  isOpen: boolean
+  onClose: () => void
+  athletePositions?: Array<{ id: string; name: string; position: number; lat: number; lng: number; elevation?: number }>
+  currentPosition?: { lat: number; lng: number; estimatedElevation?: number } | null
+}
+```
+
+**To switch views**, change the import in [apps/spectator/src/pages/Home.tsx](apps/spectator/src/pages/Home.tsx):
+```typescript
+import ARView from '../components/ARView'          // 3D terrain (default)
+import ARView from '../components/ARViewLocAR'      // LocAR.js real AR
+import ARView from '../components/ARViewResium'     // CesiumJS/Resium real AR
+```
+
+#### ARViewLocAR (LocAR.js + Three.js)
+
+**File**: [apps/spectator/src/components/ARViewLocAR.tsx](apps/spectator/src/components/ARViewLocAR.tsx)
+**Style**: [apps/spectator/src/components/ARViewLocAR.css](apps/spectator/src/components/ARViewLocAR.css)
+**Dependencies**: `locar` (npm package)
+
+- Uses **raw Three.js** (no @react-three/fiber) — Scene, PerspectiveCamera, WebGLRenderer managed in `useEffect`
+- Camera feed via `navigator.mediaDevices.getUserMedia` → `<video>` element as fullscreen background
+- Three.js canvas with `alpha: true` overlaid on top (transparent background shows camera feed through)
+- `LocationBased` from locar converts GPS coordinates to Three.js world positions via Spherical Mercator
+- `DeviceOrientationControls` from locar syncs camera rotation with compass/gyroscope (smoothingFactor: 0.1)
+- Athlete markers are `THREE.Sprite` with canvas-drawn textures (name, position badge, distance)
+- GPS position set via `locationBased.fakeGps(lng, lat, elev)` from `currentPosition` prop (avoids duplicate GPS watchers)
+- `requestAnimationFrame` render loop with full cleanup on unmount
+- Off-screen indicators update at 5Hz using `THREE.Vector3.project()` to detect off-screen athletes
+- Debug overlay: heading, FPS, athlete count, GPS coordinates (toggleable)
+
+**Key LocAR API patterns:**
+```typescript
+import { LocationBased, DeviceOrientationControls } from 'locar'
+const lb = new LocationBased(scene, camera, { gpsMinDistance: 0, gpsMinAccuracy: 1000 })
+lb.fakeGps(lng, lat, elevation)          // Set viewer position from prop
+lb.add(sprite, lng, lat, elevation)       // Place 3D object at GPS coordinates
+const controls = new DeviceOrientationControls(camera, { smoothingFactor: 0.1 })
+controls.update()                         // Call in render loop
+```
+
+#### ARViewResium (CesiumJS + Resium)
+
+**File**: [apps/spectator/src/components/ARViewResium.tsx](apps/spectator/src/components/ARViewResium.tsx)
+**Style**: [apps/spectator/src/components/ARViewResium.css](apps/spectator/src/components/ARViewResium.css)
+**Dependencies**: `cesium`, `resium`, `vite-plugin-cesium`
+
+- CesiumJS is Apache 2.0, **no Cesium Ion token needed** — `Cesium.Ion.defaultAccessToken = ''`
+- `vite-plugin-cesium` added to [apps/spectator/vite.config.ts](apps/spectator/vite.config.ts) plugins for asset serving
+- Camera feed via `getUserMedia` → `<video>` element as fullscreen background
+- Cesium canvas made transparent: `scene.backgroundColor = Cesium.Color.TRANSPARENT`, globe/sky/atmosphere/sun/moon all hidden
+- WebGL context alpha: `contextOptions={{ webgl: { alpha: true, premultipliedAlpha: false } }}`
+- CSS overrides on `.cesium-widget canvas` for `background: transparent`
+- Device orientation synced to Cesium camera via `DeviceOrientationEvent` listener with exponential smoothing (factor 0.1):
+  ```typescript
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, elevation + 1.7),
+    orientation: { heading, pitch: devicePitch - 90, roll }
+  })
+  ```
+- Athletes rendered as Resium `<Entity>` with `<BillboardGraphics>` using canvas-drawn data URL images
+- `disableDepthTestDistance={Number.POSITIVE_INFINITY}` ensures billboards always render on top
+- Off-screen indicators update at 5Hz using `Cesium.SceneTransforms.worldToWindowCoordinates()`
+- All Cesium UI chrome disabled (animation, baseLayerPicker, timeline, etc.)
+- `baseLayer={false}` prevents default imagery requests (globe is hidden anyway)
+
+**iOS orientation permission**: Both views handle `DeviceOrientationEvent.requestPermission()` for iOS 13+. ARViewLocAR delegates to locar's `enablePermissionDialog` option; ARViewResium calls it directly.
+
+**Firefox mobile**: Both views warn that Firefox mobile has limited device orientation support and suggest Chrome.
+
+**Desktop fallback**: Both views show markers on a dark background when camera/sensors are unavailable, with appropriate error messages.
+
 ## Vite Dependency Optimization
 
 The spectator app uses a specific `optimizeDeps` configuration in [apps/spectator/vite.config.ts](apps/spectator/vite.config.ts) to prevent "504 Outdated Optimize Dep" errors:

@@ -1,0 +1,170 @@
+.ar-resium-container {
+  width: 100%;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  background: #000;
+  z-index: 9999;
+  animation: arResiumFadeIn 0.3s ease-in-out;
+}
+
+@keyframes arResiumFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ar-resium-video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+.ar-resium-viewer-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* Make the Cesium canvas and container transparent so the video feed shows through */
+.ar-resium-viewer-wrapper .cesium-viewer,
+.ar-resium-viewer-wrapper .cesium-widget,
+.ar-resium-viewer-wrapper .cesium-widget canvas {
+  background: transparent !important;
+}
+
+/* Hide Cesium credit display in AR mode */
+.ar-resium-viewer-wrapper .cesium-viewer-bottom {
+  display: none !important;
+}
+
+.ar-resium-container .ar-close-button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ar-resium-container .ar-close-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: scale(1.05);
+}
+
+.ar-resium-error {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 50, 50, 0.8);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  z-index: 100;
+  text-align: center;
+  max-width: 80%;
+  backdrop-filter: blur(10px);
+}
+
+.ar-resium-debug {
+  position: absolute;
+  bottom: 80px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #00ff88;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.7rem;
+  font-family: monospace;
+  z-index: 100;
+  line-height: 1.4;
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.ar-resium-debug-toggle {
+  position: absolute;
+  bottom: 40px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  z-index: 100;
+}
+
+.ar-resium-no-athletes {
+  position: absolute;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0.5rem 1rem;
+  border-radius: 1rem;
+  font-size: 0.85rem;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+}
+
+.ar-resium-offscreen-indicator {
+  position: absolute;
+  z-index: 50;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.ar-resium-indicator-arrow {
+  font-size: 1.2rem;
+  line-height: 1;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.ar-resium-indicator-label {
+  background: rgba(0, 0, 0, 0.7);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  color: white;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .ar-resium-container .ar-close-button {
+    top: 10px;
+    right: 10px;
+  }
+
+  .ar-resium-debug {
+    font-size: 0.6rem;
+  }
+}

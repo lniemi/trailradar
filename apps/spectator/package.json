@@ -12,23 +12,27 @@
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.6",
+    "@react-three/fiber": "^9.4.0",
     "@trailradar/auth": "workspace:*",
     "@trailradar/ui": "workspace:*",
     "@trailradar/utils": "workspace:*",
-    "@react-three/drei": "^10.7.6",
-    "@react-three/fiber": "^9.4.0",
+    "cesium": "^1.138.0",
     "geo-three": "^0.1.15",
+    "locar": "^0.1.8",
     "mapbox-gl": "^3.16.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.5",
-    "three": "^0.181.0"
+    "resium": "^1.19.4",
+    "three": "^0.181.0",
+    "vite-plugin-cesium": "^1.2.23"
   },
   "devDependencies": {
-    "@trailradar/config": "workspace:*",
-    "@trailradar/typescript-config": "workspace:*",
     "@eslint/js": "^9.36.0",
     "@tailwindcss/vite": "^4.1.17",
+    "@trailradar/config": "workspace:*",
+    "@trailradar/typescript-config": "workspace:*",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.4",
