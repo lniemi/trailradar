@@ -150,28 +150,64 @@ export default function ARViewLocAR({
   const markersRef = useRef<Map<string, THREE.Sprite>>(new window.Map())
   const streamRef = useRef<MediaStream | null>(null)
   const rafRef = useRef(0)
+  const geoWatchRef = useRef<number | null>(null)
+  const disposedRef = useRef(false)
 
   // State
   const [showDebug, setShowDebug] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [offscreenAthletes, setOffscreenAthletes] = useState<OffscreenAthlete[]>([])
+  const [activated, setActivated] = useState(false)
+  const [liveGps, setLiveGps] = useState<{ lat: number; lng: number; elevation: number } | null>(null)
   const [debugInfo, setDebugInfo] = useState({
     heading: 0,
     fps: 0,
     athletes: 0,
     gps: 'N/A',
+    gpsSource: 'none',
   })
 
   // FPS tracking refs (avoid state updates per frame)
   const fpsCountRef = useRef(0)
   const fpsTimeRef = useRef(performance.now())
   const headingRef = useRef(0)
+  const gpsSourceRef = useRef<'live' | 'simulated' | 'none'>('none')
+  const liveGpsRef = useRef<{ lat: number; lng: number; elevation: number } | null>(null)
+
+  // Reset activated state when view closes
+  useEffect(() => {
+    if (!isOpen) {
+      setActivated(false)
+    }
+  }, [isOpen])
+
+  // ==================== Activation handler (user gesture) ====================
+  const handleActivate = async () => {
+    // Request DeviceOrientation permission from this user gesture (required by iOS/Chrome)
+    try {
+      const DOE = DeviceOrientationEvent as unknown as {
+        requestPermission?: () => Promise<string>
+      }
+      if (typeof DOE.requestPermission === 'function') {
+        const perm = await DOE.requestPermission()
+        if (perm !== 'granted') {
+          setError('Orientation permission denied. Compass will not work.')
+        } else {
+          console.log('[ARViewLocAR] DeviceOrientation permission granted')
+        }
+      }
+    } catch (err) {
+      console.warn('[ARViewLocAR] DeviceOrientation permission request failed:', err)
+    }
+
+    setActivated(true)
+  }
 
   // ==================== Lifecycle: init & teardown ====================
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen || !activated) return
 
-    let disposed = false
+    disposedRef.current = false
 
     const init = async () => {
       if (!canvasRef.current || !videoRef.current) return
@@ -184,7 +220,7 @@ export default function ARViewLocAR({
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
         })
-        if (disposed) {
+        if (disposedRef.current) {
           stream.getTracks().forEach((t) => t.stop())
           return
         }
@@ -196,7 +232,7 @@ export default function ARViewLocAR({
         setError('Camera not available. Markers shown on dark background.')
       }
 
-      if (disposed) return
+      if (disposedRef.current) return
 
       // --- Three.js ---
       const scene = new THREE.Scene()
@@ -224,17 +260,54 @@ export default function ARViewLocAR({
         })
         locationBasedRef.current = lb
 
+        // Set initial position from prop while waiting for real GPS
         if (currentPosition) {
           lb.fakeGps(
             currentPosition.lng,
             currentPosition.lat,
             currentPosition.estimatedElevation ?? 0,
           )
+          gpsSourceRef.current = 'simulated'
           console.log(
-            '[ARViewLocAR] GPS position set:',
+            '[ARViewLocAR] Initial GPS position (simulated):',
             currentPosition.lat.toFixed(5),
             currentPosition.lng.toFixed(5),
           )
+        }
+
+        // --- Real GPS: watch device position ---
+        if ('geolocation' in navigator) {
+          const watchId = navigator.geolocation.watchPosition(
+            (pos) => {
+              if (disposedRef.current) return
+              const { latitude, longitude, altitude } = pos.coords
+              const elev = altitude ?? currentPosition?.estimatedElevation ?? 0
+              lb.fakeGps(longitude, latitude, elev)
+              gpsSourceRef.current = 'live'
+              const gpsData = { lat: latitude, lng: longitude, elevation: elev }
+              liveGpsRef.current = gpsData
+              setLiveGps(gpsData)
+              console.log(
+                '[ARViewLocAR] Live GPS update:',
+                latitude.toFixed(5),
+                longitude.toFixed(5),
+                'alt:', altitude?.toFixed(1) ?? 'N/A',
+              )
+            },
+            (err) => {
+              console.warn('[ARViewLocAR] Geolocation error:', err.message)
+              if (gpsSourceRef.current !== 'live') {
+                // Only show error if we never got a live fix
+                console.log('[ARViewLocAR] Using simulated position as fallback')
+              }
+            },
+            {
+              enableHighAccuracy: true,
+              maximumAge: 2000,
+              timeout: 10000,
+            },
+          )
+          geoWatchRef.current = watchId
         }
       } catch (err) {
         console.error('[ARViewLocAR] LocationBased init failed:', err)
@@ -242,22 +315,11 @@ export default function ARViewLocAR({
       }
 
       // --- LocAR: DeviceOrientationControls ---
+      // Permission was already requested in handleActivate (user gesture),
+      // so we can just create the controls here.
       try {
-        // iOS 13+ requires explicit permission from a user gesture
-        const DOE = DeviceOrientationEvent as unknown as {
-          requestPermission?: () => Promise<string>
-        }
-        if (typeof DOE.requestPermission === 'function') {
-          const perm = await DOE.requestPermission()
-          if (disposed) return
-          if (perm !== 'granted') {
-            setError('Orientation permission denied. Compass will not work.')
-          }
-        }
-
         const controls = new DeviceOrientationControls(camera, {
           smoothingFactor: 0.1,
-          enablePermissionDialog: true,
         })
         deviceControlsRef.current = controls
         console.log('[ARViewLocAR] DeviceOrientationControls ready')
@@ -276,7 +338,7 @@ export default function ARViewLocAR({
 
       // --- Resize handler ---
       const onResize = () => {
-        if (disposed) return
+        if (disposedRef.current) return
         const nw = window.innerWidth
         const nh = window.innerHeight
         camera.aspect = nw / nh
@@ -287,7 +349,7 @@ export default function ARViewLocAR({
 
       // --- Render loop ---
       const animate = () => {
-        if (disposed) return
+        if (disposedRef.current) return
         rafRef.current = requestAnimationFrame(animate)
 
         deviceControlsRef.current?.update()
@@ -305,13 +367,19 @@ export default function ARViewLocAR({
           const heading = ((-euler.y * 180) / Math.PI + 360) % 360
           headingRef.current = heading
 
+          const gpsPos = liveGpsRef.current
+          const simPos = currentPosition
+
           setDebugInfo({
             heading: Math.round(heading),
             fps,
             athletes: markersRef.current.size,
-            gps: currentPosition
-              ? `${currentPosition.lat.toFixed(4)}, ${currentPosition.lng.toFixed(4)}`
-              : 'N/A',
+            gps: gpsPos
+              ? `${gpsPos.lat.toFixed(4)}, ${gpsPos.lng.toFixed(4)}`
+              : simPos
+                ? `${simPos.lat.toFixed(4)}, ${simPos.lng.toFixed(4)}`
+                : 'N/A',
+            gpsSource: gpsSourceRef.current,
           })
         }
       }
@@ -330,9 +398,15 @@ export default function ARViewLocAR({
 
     // --- Cleanup ---
     return () => {
-      disposed = true
+      disposedRef.current = true
       cancelAnimationFrame(rafRef.current)
       removeResize?.()
+
+      // Stop GPS watch
+      if (geoWatchRef.current !== null) {
+        navigator.geolocation.clearWatch(geoWatchRef.current)
+        geoWatchRef.current = null
+      }
 
       // Dispose markers
       markersRef.current.forEach((sprite) => {
@@ -361,24 +435,37 @@ export default function ARViewLocAR({
       cameraRef.current = null
       locationBasedRef.current = null
       deviceControlsRef.current = null
+      gpsSourceRef.current = 'none'
+      liveGpsRef.current = null
+      setLiveGps(null)
       setError(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen])
+  }, [isOpen, activated])
 
-  // ==================== GPS update ====================
+  // ==================== GPS fallback update ====================
+  // Only use simulated position if we have no live GPS
   useEffect(() => {
-    if (!isOpen || !locationBasedRef.current || !currentPosition) return
+    if (!isOpen || !activated || !locationBasedRef.current || !currentPosition) return
+    // Don't override live GPS with simulated position
+    if (gpsSourceRef.current === 'live') return
     locationBasedRef.current.fakeGps(
       currentPosition.lng,
       currentPosition.lat,
       currentPosition.estimatedElevation ?? 0,
     )
-  }, [isOpen, currentPosition])
+  }, [isOpen, activated, currentPosition])
 
   // ==================== Athlete markers ====================
+  // Use live GPS position for distance calculations when available
+  const effectivePosition = liveGps
+    ? { lat: liveGps.lat, lng: liveGps.lng }
+    : currentPosition
+      ? { lat: currentPosition.lat, lng: currentPosition.lng }
+      : null
+
   useEffect(() => {
-    if (!isOpen || !locationBasedRef.current || !sceneRef.current) return
+    if (!isOpen || !activated || !locationBasedRef.current || !sceneRef.current) return
 
     const scene = sceneRef.current
     const lb = locationBasedRef.current
@@ -401,8 +488,8 @@ export default function ARViewLocAR({
 
     // Add / update athletes
     athletePositions.forEach((athlete) => {
-      const dist = currentPosition
-        ? haversineDistance(currentPosition.lat, currentPosition.lng, athlete.lat, athlete.lng)
+      const dist = effectivePosition
+        ? haversineDistance(effectivePosition.lat, effectivePosition.lng, athlete.lat, athlete.lng)
         : 0
       const distStr = formatDistance(dist)
       const color = getPositionColor(athlete.position)
@@ -431,15 +518,17 @@ export default function ARViewLocAR({
         console.log(`[ARViewLocAR] Marker added: ${athlete.name}`)
       }
     })
-  }, [isOpen, athletePositions, currentPosition])
+  }, [isOpen, activated, athletePositions, effectivePosition])
 
   // ==================== Off-screen indicators (5 Hz) ====================
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen || !activated) return
 
     const interval = setInterval(() => {
       const camera = cameraRef.current
-      if (!camera || !currentPosition) {
+      const effPos = liveGpsRef.current
+        ?? (currentPosition ? { lat: currentPosition.lat, lng: currentPosition.lng } : null)
+      if (!camera || !effPos) {
         setOffscreenAthletes([])
         return
       }
@@ -465,8 +554,8 @@ export default function ARViewLocAR({
 
         if (!onScreen) {
           const dist = haversineDistance(
-            currentPosition.lat,
-            currentPosition.lng,
+            effPos.lat,
+            effPos.lng,
             athlete.lat,
             athlete.lng,
           )
@@ -491,11 +580,42 @@ export default function ARViewLocAR({
     }, 200)
 
     return () => clearInterval(interval)
-  }, [isOpen, athletePositions, currentPosition])
+  }, [isOpen, activated, athletePositions, currentPosition])
 
   // ==================== Render ====================
 
   if (!isOpen) return null
+
+  // Show activation screen before initializing sensors
+  if (!activated) {
+    return (
+      <div className="ar-locar-container">
+        <div className="ar-locar-activate-screen">
+          <div className="ar-locar-activate-content">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5">
+              <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7Z" />
+            </svg>
+            <h2 style={{ color: 'white', margin: '1rem 0 0.5rem', fontSize: '1.5rem' }}>AR View</h2>
+            <p style={{ color: 'rgba(255,255,255,0.7)', margin: '0 0 1.5rem', fontSize: '0.9rem', textAlign: 'center', maxWidth: '280px' }}>
+              Tap the button below to enable camera, GPS, and compass sensors.
+            </p>
+            <button className="ar-locar-activate-button" onClick={handleActivate}>
+              Start AR
+            </button>
+          </div>
+          {/* Close button on activation screen too */}
+          <button className="ar-close-button" onClick={onClose} aria-label="Close AR view"
+            style={{ position: 'absolute', top: 20, right: 20, zIndex: 100, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '0.5rem', padding: '0.5rem', color: 'white', cursor: 'pointer' }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="ar-locar-container">
@@ -546,6 +666,7 @@ export default function ARViewLocAR({
           <div>FPS: {debugInfo.fps}</div>
           <div>Athletes: {debugInfo.athletes}</div>
           <div>GPS: {debugInfo.gps}</div>
+          <div>Source: {debugInfo.gpsSource}</div>
         </div>
       )}
       <button

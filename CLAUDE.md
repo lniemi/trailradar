@@ -83,6 +83,12 @@ VITE_SUPABASE_ANON_KEY=your-local-anon-key
 VITE_MAPBOX_ACCESS_TOKEN=your-mapbox-token
 ```
 
+## HTTPS Dev Server (Self-Signed SSL)
+
+The spectator dev server runs over **HTTPS** using `@vitejs/plugin-basic-ssl`, which generates a self-signed certificate automatically. This is required because `navigator.mediaDevices` (camera) and `DeviceOrientationEvent` (compass/gyroscope) only work in a **secure context** (HTTPS or localhost). Without HTTPS, accessing the dev server over LAN from a mobile device (e.g. `https://192.168.1.33:5173`) would fail with `undefined is not an object` errors when trying to use these APIs.
+
+**On first visit**, the browser will show a security warning about the self-signed certificate. You must accept the risk / proceed to the site for the app to work. This is expected for local development only.
+
 ## Shared Packages
 
 ### @trailradar/utils
