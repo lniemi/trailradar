@@ -43,3 +43,4 @@ apps/spectator/public/imported-trails/
 # Line-of-sight module virtual environment
 los_module/.venv/
 los_module/DEM.tif.aux.xml
+los_module/__marimo__/
