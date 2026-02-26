@@ -17,12 +17,12 @@ export class MultiAthleteSimulation {
    * Initialize all athlete simulations
    * @returns {Promise<void>}
    */
-  async initialize() {
+  async initialize(routeCoordinates = null) {
     console.log('[MultiAthleteSimulation] Initializing all simulations')
 
     for (const athlete of this.athletes) {
       const simulation = new AthleteSimulation(athlete)
-      await simulation.initialize()
+      await simulation.initialize(routeCoordinates)
       this.simulations.set(athlete.id, simulation)
     }
 

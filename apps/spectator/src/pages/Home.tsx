@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import Map from '../components/Map'
 import Navbar from '../components/Navbar'
 import RaceTimer from '../components/RaceTimer'
@@ -11,9 +12,16 @@ import { createAthleteSimulation } from '../simulations/athleteSimulation'
 import { createMultiAthleteSimulation } from '../simulations/multiAthleteSimulation'
 import { mockAthletes } from '../simulations/mockAthletes'
 import { getNearestCameraPosition } from '../utils/cameraPositions'
+import { getTrailById } from '../utils/trailStorage'
 
 function Home() {
+  const { trailId } = useParams()
+  const navigate = useNavigate()
   const mapRef = useRef(null)
+  const [routeData, setRouteData] = useState(null)
+  const routeCoordinatesRef = useRef(null)
+  const [trailLoading, setTrailLoading] = useState(true)
+  const [trailError, setTrailError] = useState<string | null>(null)
   const [simulation, setSimulation] = useState(null)
   const simulationRef = useRef(null)
   const [multiSimulation, setMultiSimulation] = useState(null)
@@ -30,6 +38,46 @@ function Home() {
   const [isStreetViewOpen, setIsStreetViewOpen] = useState(false)
   const [streetViewPosition, setStreetViewPosition] = useState(null)
   const [athletePositionsForVR, setAthletePositionsForVR] = useState([])
+
+  // Load trail data on mount
+  useEffect(() => {
+    if (!trailId) {
+      navigate('/')
+      return
+    }
+
+    const trail = getTrailById(trailId)
+    if (!trail) {
+      setTrailError('Trail not found')
+      setTrailLoading(false)
+      return
+    }
+
+    const loadTrail = async () => {
+      try {
+        let data
+        if (trail.geojsonData) {
+          data = trail.geojsonData
+        } else if (trail.geojsonUrl) {
+          const response = await fetch(trail.geojsonUrl)
+          data = await response.json()
+        } else {
+          throw new Error('Trail has no route data')
+        }
+
+        const coords = data.features[0].geometry.coordinates[0]
+        routeCoordinatesRef.current = coords
+        setRouteData(data)
+      } catch (err) {
+        console.error('Failed to load trail:', err)
+        setTrailError(err instanceof Error ? err.message : 'Failed to load trail')
+      } finally {
+        setTrailLoading(false)
+      }
+    }
+
+    loadTrail()
+  }, [trailId])
 
   // Listen for commands from SimulationManager window
   useEffect(() => {
@@ -74,7 +122,7 @@ function Home() {
 
         // Create new simulation with selected athlete
         const sim = createAthleteSimulation(data.athlete)
-        await sim.initialize()
+        await sim.initialize(routeCoordinatesRef.current)
         console.log('[Home] Simulation initialized')
 
         // Set speed before starting if provided
@@ -115,7 +163,7 @@ function Home() {
 
         // Create multi-athlete simulation
         const multiSim = createMultiAthleteSimulation(data.athletes)
-        await multiSim.initialize()
+        await multiSim.initialize(routeCoordinatesRef.current)
         console.log('[Home] Multi-athlete simulation initialized')
 
         multiSim.start()
@@ -369,10 +417,29 @@ function Home() {
     setIsARViewOpen(true)
   }
 
+  if (trailLoading) {
+    return (
+      <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111', color: '#e5e5e5' }}>
+        Loading trail...
+      </div>
+    )
+  }
+
+  if (trailError) {
+    return (
+      <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#111', color: '#e5e5e5', gap: '1rem' }}>
+        <p>{trailError}</p>
+        <button onClick={() => navigate('/')} style={{ color: '#fbbf24', background: 'none', border: '1px solid #fbbf24', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+          Back to trails
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <Navbar />
-      <Map ref={mapRef} />
+      <Map ref={mapRef} routeData={routeData} />
       <RaceTimer startTime={raceStartTime} isRunning={isRaceRunning} />
       <Leaderboard
         athletes={athletes}

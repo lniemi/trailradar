@@ -22,13 +22,15 @@ export class AthleteSimulation {
    * Initialize the simulation by loading the route
    * @returns {Promise<void>}
    */
-  async initialize() {
+  async initialize(routeCoordinates = null) {
     try {
-      const response = await fetch('/TOR330.geojson')
-      const data = await response.json()
-
-      // Extract coordinates from the MultiLineString geometry
-      this.routeCoordinates = data.features[0].geometry.coordinates[0]
+      if (routeCoordinates) {
+        this.routeCoordinates = routeCoordinates
+      } else {
+        const response = await fetch('/TOR330.geojson')
+        const data = await response.json()
+        this.routeCoordinates = data.features[0].geometry.coordinates[0]
+      }
       this.totalDistance = calculateTotalDistance(this.routeCoordinates)
 
       console.log(`Route loaded: ${this.routeCoordinates.length} points, ${this.totalDistance.toFixed(2)} km total`)

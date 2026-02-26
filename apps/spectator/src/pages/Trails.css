@@ -1,0 +1,142 @@
+.trails-page {
+  min-height: 100vh;
+  background: #111;
+  color: #e5e5e5;
+  padding: 2rem;
+  font-family: system-ui, -apple-system, sans-serif;
+  overflow-y: auto;
+}
+
+.trails-header {
+  margin-bottom: 1.5rem;
+}
+
+.trails-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fbbf24;
+  margin: 0 0 0.25rem 0;
+}
+
+.trails-subtitle {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.trails-actions {
+  margin-bottom: 1rem;
+}
+
+.import-btn {
+  background: transparent;
+  color: #fbbf24;
+  border: 1px solid #fbbf24;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.import-btn:hover {
+  background: #fbbf24;
+  color: #111;
+}
+
+.import-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trails-error {
+  background: #451a1a;
+  border-left: 3px solid #ef4444;
+  color: #fca5a5;
+  padding: 0.625rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.8125rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.error-dismiss {
+  background: none;
+  border: none;
+  color: #fca5a5;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  line-height: 1;
+}
+
+.trails-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.trail-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  background: #1a1a1a;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.trail-item:hover {
+  background: #222;
+  border-left-color: #fbbf24;
+}
+
+.trail-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.trail-item-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.trail-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #f5f5f5;
+}
+
+.trail-badge {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+  border: 1px solid #4b5563;
+  padding: 1px 6px;
+}
+
+.trail-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+.trail-delete {
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0 0.5rem;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.trail-delete:hover {
+  color: #ef4444;
+}

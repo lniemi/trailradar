@@ -30,7 +30,7 @@ export default function Navbar() {
               onClick={() => setIsOpen(false)}
               className="text-sm font-medium hover:text-yellow-400 transition-colors"
             >
-              Map
+              Trails
             </Link>
             <Link
               to="/simulations"

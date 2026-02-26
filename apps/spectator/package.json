@@ -12,6 +12,7 @@
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
+    "@mapbox/togeojson": "^0.16.2",
     "@react-three/drei": "^10.7.6",
     "@react-three/fiber": "^9.4.0",
     "@trailradar/auth": "workspace:*",

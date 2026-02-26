@@ -4,11 +4,50 @@ import './Map.css'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
-const MapComponent = forwardRef((props, ref) => {
+const MapComponent = forwardRef(({ routeData }: { routeData?: any }, ref) => {
   const mapContainer = useRef(null)
   const map = useRef(null)
   const athleteMarker = useRef(null) // For single athlete mode (backward compatibility)
   const athleteMarkers = useRef(new window.Map()) // Map<athleteId, marker> for multiple athletes
+
+  const pendingRouteData = useRef(null)
+
+  const addRouteToMap = (mapInstance, data) => {
+    if (!mapInstance || !data) return
+
+    // Remove existing route layer/source if present
+    if (mapInstance.getLayer('route-line')) {
+      mapInstance.removeLayer('route-line')
+    }
+    if (mapInstance.getSource('route')) {
+      mapInstance.removeSource('route')
+    }
+
+    mapInstance.addSource('route', {
+      type: 'geojson',
+      data: data
+    })
+
+    mapInstance.addLayer({
+      id: 'route-line',
+      type: 'line',
+      source: 'route',
+      paint: {
+        'line-color': '#ffff00',
+        'line-width': 3
+      }
+    })
+
+    // Calculate bounds and zoom to extent
+    const coordinates = data.features[0].geometry.coordinates[0]
+    const bounds = coordinates.reduce((bounds, coord) => {
+      return bounds.extend(coord)
+    }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]))
+
+    mapInstance.fitBounds(bounds, {
+      padding: 50
+    })
+  }
 
   useEffect(() => {
     if (map.current) return
@@ -22,7 +61,7 @@ const MapComponent = forwardRef((props, ref) => {
       terrain: { source: 'mapbox-dem', exaggeration: 1.5 }
     })
 
-    map.current.on('style.load', () => {
+    map.current.on('load', () => {
       map.current.addSource('mapbox-dem', {
         type: 'raster-dem',
         url: 'mapbox://mapbox.terrain-rgb',
@@ -31,35 +70,11 @@ const MapComponent = forwardRef((props, ref) => {
       })
       map.current.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 })
 
-      // Load TOR330.geojson
-      fetch('/TOR330.geojson')
-        .then(response => response.json())
-        .then(data => {
-          map.current.addSource('tor330', {
-            type: 'geojson',
-            data: data
-          })
-
-          map.current.addLayer({
-            id: 'tor330-line',
-            type: 'line',
-            source: 'tor330',
-            paint: {
-              'line-color': '#ffff00',
-              'line-width': 3
-            }
-          })
-
-          // Calculate bounds and zoom to extent
-          const coordinates = data.features[0].geometry.coordinates[0]
-          const bounds = coordinates.reduce((bounds, coord) => {
-            return bounds.extend(coord)
-          }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]))
-
-          map.current.fitBounds(bounds, {
-            padding: 50
-          })
-        })
+      // If route data arrived before the map was ready, add it now
+      if (pendingRouteData.current) {
+        addRouteToMap(map.current, pendingRouteData.current)
+        pendingRouteData.current = null
+      }
     })
 
     return () => {
@@ -76,6 +91,18 @@ const MapComponent = forwardRef((props, ref) => {
       }
     }
   }, [])
+
+  // Add route data to map when available
+  useEffect(() => {
+    if (!map.current || !routeData) return
+
+    if (map.current.isStyleLoaded()) {
+      addRouteToMap(map.current, routeData)
+    } else {
+      // Map not ready yet — queue for when load fires
+      pendingRouteData.current = routeData
+    }
+  }, [routeData])
 
   // Helper function to get marker color by position
   const getMarkerColor = (position) => {
