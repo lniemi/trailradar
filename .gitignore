@@ -42,5 +42,4 @@ apps/spectator/public/imported-trails/
 
 # Line-of-sight module virtual environment
 los_module/.venv/
-los_module/.vscode/settings.json
 los_module/DEM.tif.aux.xml
