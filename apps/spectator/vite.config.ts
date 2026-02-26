@@ -3,10 +3,11 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import cesium from 'vite-plugin-cesium'
 import basicSsl from '@vitejs/plugin-basic-ssl'
+import trailsPlugin from './vite-plugin-trails'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), cesium(), basicSsl()],
+  plugins: [react(), tailwindcss(), cesium(), basicSsl(), trailsPlugin()],
   server: {
     host: '0.0.0.0', // allow access from network - useful for testing on mobile devices, but most likely to be used differently in production
     port: 5173,

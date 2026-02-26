@@ -46,15 +46,15 @@ function Home() {
       return
     }
 
-    const trail = getTrailById(trailId)
-    if (!trail) {
-      setTrailError('Trail not found')
-      setTrailLoading(false)
-      return
-    }
-
     const loadTrail = async () => {
       try {
+        const trail = await getTrailById(trailId)
+        if (!trail) {
+          setTrailError('Trail not found')
+          setTrailLoading(false)
+          return
+        }
+
         let data
         if (trail.geojsonData) {
           data = trail.geojsonData

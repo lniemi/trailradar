@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Trail } from '../types/trail'
 import { getAllTrails, saveImportedTrail, deleteImportedTrail } from '../utils/trailStorage'
@@ -8,9 +8,19 @@ import './Trails.css'
 export default function Trails() {
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [trails, setTrails] = useState<Trail[]>(() => getAllTrails())
+  const [trails, setTrails] = useState<Trail[]>([])
+  const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const refreshTrails = async () => {
+    const all = await getAllTrails()
+    setTrails(all)
+  }
+
+  useEffect(() => {
+    refreshTrails().finally(() => setLoading(false))
+  }, [])
 
   const handleTrailClick = (trail: Trail) => {
     navigate(`/trail/${trail.id}`)
@@ -37,11 +47,10 @@ export default function Trails() {
         distance: parsed.distance,
         elevationGain: parsed.elevationGain,
         source: 'imported',
-        geojsonData: parsed.geojson,
       }
 
-      saveImportedTrail(trail)
-      setTrails(getAllTrails())
+      await saveImportedTrail(trail, parsed.geojson)
+      await refreshTrails()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to import GPX file')
     } finally {
@@ -51,10 +60,10 @@ export default function Trails() {
     }
   }
 
-  const handleDelete = (e: React.MouseEvent, trailId: string) => {
+  const handleDelete = async (e: React.MouseEvent, trailId: string) => {
     e.stopPropagation()
-    deleteImportedTrail(trailId)
-    setTrails(getAllTrails())
+    await deleteImportedTrail(trailId)
+    await refreshTrails()
   }
 
   return (
@@ -88,40 +97,44 @@ export default function Trails() {
         </div>
       )}
 
-      <div className="trails-list">
-        {trails.map((trail) => (
-          <div
-            key={trail.id}
-            className="trail-item"
-            onClick={() => handleTrailClick(trail)}
-          >
-            <div className="trail-item-content">
-              <div className="trail-item-header">
-                <span className="trail-name">{trail.name}</span>
-                {trail.source === 'imported' && (
-                  <span className="trail-badge">imported</span>
-                )}
+      {loading ? (
+        <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>Loading trails...</p>
+      ) : (
+        <div className="trails-list">
+          {trails.map((trail) => (
+            <div
+              key={trail.id}
+              className="trail-item"
+              onClick={() => handleTrailClick(trail)}
+            >
+              <div className="trail-item-content">
+                <div className="trail-item-header">
+                  <span className="trail-name">{trail.name}</span>
+                  {trail.source === 'imported' && (
+                    <span className="trail-badge">imported</span>
+                  )}
+                </div>
+                <div className="trail-meta">
+                  <span>{trail.location}</span>
+                  <span>{trail.distance} km</span>
+                  {trail.elevationGain != null && (
+                    <span>+{trail.elevationGain} m</span>
+                  )}
+                </div>
               </div>
-              <div className="trail-meta">
-                <span>{trail.location}</span>
-                <span>{trail.distance} km</span>
-                {trail.elevationGain != null && (
-                  <span>+{trail.elevationGain} m</span>
-                )}
-              </div>
+              {trail.source === 'imported' && (
+                <button
+                  className="trail-delete"
+                  onClick={(e) => handleDelete(e, trail.id)}
+                  title="Delete imported trail"
+                >
+                  &times;
+                </button>
+              )}
             </div>
-            {trail.source === 'imported' && (
-              <button
-                className="trail-delete"
-                onClick={(e) => handleDelete(e, trail.id)}
-                title="Delete imported trail"
-              >
-                &times;
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

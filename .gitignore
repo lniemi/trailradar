@@ -37,6 +37,9 @@ packages/**/dist
 todo.md
 docs/~$TrailRadar_Technical_Architecture.pptx
 
+# Imported trail files (user-uploaded, not committed)
+apps/spectator/public/imported-trails/
+
 # Line-of-sight module virtual environment
 los_module/.venv/
 los_module/.vscode/settings.json
