@@ -192,11 +192,13 @@ def _(mo):
 
 @app.cell
 def _(os):
-    """Start a local terrain-RGB tile server (rio-tiler + starlette + uvicorn)."""
+    """Pre-smooth the DEM and start a local terrain-RGB tile server."""
     import threading
     import numpy as np_server
     from io import BytesIO
     from PIL import Image as PILImage
+    from scipy.ndimage import gaussian_filter
+    import rasterio as _rio
 
     from starlette.applications import Starlette
     from starlette.responses import Response
@@ -205,8 +207,27 @@ def _(os):
 
     from rio_tiler.io import Reader
 
-    _DEM_PATH = os.path.abspath("DEM_4326.tif")
+    _DEM_RAW = os.path.abspath("DEM_4326.tif")
+    _DEM_SMOOTH = os.path.abspath("DEM_4326_smooth.tif")
     _TERRAIN_PORT = 8765
+    _TILE_SIZE = 512
+    _GAUSSIAN_SIGMA = 3  # sigma in pixels — at 30m DEM this smooths over ~90m radius
+
+    # --- Pre-smooth the entire DEM once (writes DEM_4326_smooth.tif) ---
+    if not os.path.exists(_DEM_SMOOTH) or os.path.getmtime(_DEM_RAW) > os.path.getmtime(_DEM_SMOOTH):
+        print(f"Smoothing DEM (sigma={_GAUSSIAN_SIGMA})...")
+        with _rio.open(_DEM_RAW) as src:
+            elev = src.read(1).astype(np_server.float64)
+            profile = src.profile.copy()
+        elev_smooth = gaussian_filter(elev, sigma=_GAUSSIAN_SIGMA)
+        profile.update(dtype="float32")
+        with _rio.open(_DEM_SMOOTH, "w", **profile) as dst:
+            dst.write(elev_smooth.astype(np_server.float32), 1)
+        print(f"Saved smoothed DEM to {_DEM_SMOOTH}")
+    else:
+        print(f"Using existing smoothed DEM: {_DEM_SMOOTH}")
+
+    _DEM_PATH = _DEM_SMOOTH
 
     def _elevation_to_terrain_rgb(elev):
         """Encode elevation (metres) -> Mapbox terrain-RGB (3 x uint8)."""
@@ -222,7 +243,8 @@ def _(os):
         y = int(request.path_params["y"])
         try:
             with Reader(_DEM_PATH) as src:
-                img = src.tile(x, y, z, tilesize=256)
+                img = src.tile(x, y, z, tilesize=_TILE_SIZE,
+                               resampling_method="cubic_spline")
             rgb = _elevation_to_terrain_rgb(img.data[0].astype(np_server.float64))
             pil = PILImage.fromarray(np_server.transpose(rgb, (1, 2, 0)))
             buf = BytesIO()
@@ -236,11 +258,9 @@ def _(os):
                 },
             )
         except Exception:
-            # Tile outside DEM extent - return a flat-sea-level terrain-RGB PNG
-            # Encoding for 0m elevation: (0 + 10000) / 0.1 = 100000
-            # R=1, G=134, B=160 -> decodes to exactly 0.0m
+            # Tile outside DEM extent — flat sea-level tile
             buf = BytesIO()
-            PILImage.new("RGB", (256, 256), (1, 134, 160)).save(buf, format="PNG")
+            PILImage.new("RGB", (_TILE_SIZE, _TILE_SIZE), (1, 134, 160)).save(buf, format="PNG")
             return Response(buf.getvalue(), media_type="image/png",
                             headers={"Access-Control-Allow-Origin": "*"})
 
@@ -280,13 +300,13 @@ def _(leafmap, terrain_tile_url, tracks):
                 "terrainSource": {
                     "type": "raster-dem",
                     "tiles": [terrain_tile_url],
-                    "tileSize": 256,
+                    "tileSize": 512,
                     "encoding": "mapbox",
                 },
                 "hillshadeSource": {
                     "type": "raster-dem",
                     "tiles": [terrain_tile_url],
-                    "tileSize": 256,
+                    "tileSize": 512,
                     "encoding": "mapbox",
                 },
             },
